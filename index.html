@@ -316,7 +316,7 @@ body{margin:0}img{max-width:100%}[hidden]{display:none!important}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="9" r="1.8"/><path d="m21 15-4.5-4.5L6 21"/></svg>
         <b>Screenshot auswählen</b><span class="sub">aus der Galerie – oder hier einfügen (Strg+V)</span>
       </label>
-      <input type="file" id="scanFile" accept="image/png,image/jpeg,image/webp,image/gif" class="sr">
+      <input type="file" id="scanFile" accept="image/*" class="sr">
       <div id="scanStatus" class="sub" aria-live="polite"></div>
       <button class="btn" id="manualBtn" type="button">Preis lieber selbst eingeben</button>
     </div>
@@ -862,13 +862,40 @@ function scanReset(){
 function openScanForm(){scan.active=true;$('#scanForm').hidden=false;if(!$('#sDate').value)$('#sDate').value=defaultBuyDate();renderScanVerdict()}
 $('#manualBtn').onclick=()=>{scanReset();openScanForm();$('#scanStatus').textContent='';$('#sName').focus()};
 $('#sClear').onclick=scanReset;
+/* Bildtyp an den ersten Bytes erkennen (Android liefert den Typ nicht immer mit) */
+function sniffType(buf){
+  const b=new Uint8Array(buf.slice(0,16)),s=String.fromCharCode(...b);
+  if(b[0]===0x89&&s.slice(1,4)==='PNG')return 'image/png';
+  if(b[0]===0xFF&&b[1]===0xD8)return 'image/jpeg';
+  if(s.slice(0,4)==='RIFF'&&s.slice(8,12)==='WEBP')return 'image/webp';
+  if(s.slice(0,3)==='GIF')return 'image/gif';
+  if(s.slice(4,8)==='ftyp')return /avif/.test(s)?'image/avif':'image/heic';
+  return '';
+}
+/* Bild öffnen: zuerst createImageBitmap, sonst über ein <img>-Element */
+async function decodeImage(file){
+  try{return await createImageBitmap(file)}
+  catch(e1){
+    const url=URL.createObjectURL(file);
+    try{const img=new Image();img.src=url;await img.decode();return img}
+    catch(e2){throw new Error('Bild nicht lesbar ('+(file.type||'unbekanntes Format')+')')}
+    finally{setTimeout(()=>URL.revokeObjectURL(url),60000)}
+  }
+}
+const imgW=b=>b.naturalWidth||b.width,imgH=b=>b.naturalHeight||b.height;
 async function makeThumb(file){
-  try{const bmp=await createImageBitmap(file);const s=96/Math.max(bmp.width,bmp.height),c=document.createElement('canvas');
-    c.width=Math.max(1,Math.round(bmp.width*Math.min(1,s)));c.height=Math.max(1,Math.round(bmp.height*Math.min(1,s)));
+  try{const bmp=await decodeImage(file);const s=96/Math.max(imgW(bmp),imgH(bmp)),c=document.createElement('canvas');
+    c.width=Math.max(1,Math.round(imgW(bmp)*Math.min(1,s)));c.height=Math.max(1,Math.round(imgH(bmp)*Math.min(1,s)));
     c.getContext('2d').drawImage(bmp,0,0,c.width,c.height);return c.toDataURL('image/jpeg',.65)}catch(e){return null}
 }
-async function handleImage(file){
-  if(!file||!/^image\//.test(file.type)){$('#scanStatus').textContent='Bitte ein Bild (PNG, JPG, WebP) auswählen.';return}
+async function handleImage(picked){
+  if(!picked)return;
+  // Sofort komplett einlesen: Android erlaubt den Zugriff auf die ausgewählte Datei oft nur kurz
+  let file;
+  try{const buf=await picked.arrayBuffer();file=new File([buf],picked.name||'bild',{type:/^image\//.test(picked.type)?picked.type:sniffType(buf)})}
+  catch(e){scanReset();$('#scanStatus').textContent='Das Bild konnte nicht gelesen werden. Wähle es bitte noch einmal aus.';return}
+  if(/heic|heif/.test(file.type)){scanReset();$('#scanStatus').textContent='HEIC-Fotos kann der Browser nicht öffnen. Nimm einen Screenshot (PNG/JPG) oder stelle die Kamera auf JPG um.';return}
+  if(!/^image\//.test(file.type)){scanReset();$('#scanStatus').textContent='Bitte ein Bild auswählen (Screenshot, PNG oder JPG).';return}
   scanReset();scan.file=file;scan.thumb=await makeThumb(file);
   const img=$('#scanImg');if(scan.thumb){img.src=scan.thumb;img.hidden=false}
   openScanForm();
@@ -889,8 +916,7 @@ async function handleImage(file){
     if(!r.price)$('#sPrice').focus();
   }catch(e){
     const why=String(e&&(e.message||e)||'unbekannt').slice(0,140);
-    setS(/image|bitmap|decode/i.test(why)?'Dieses Bild konnte nicht geöffnet werden. Versuche einen anderen Screenshot oder trag Produkt und Preis selbst ein.'
-      :`Die Texterkennung hat nicht funktioniert. Trag Produkt und Preis bitte selbst ein. (Technischer Grund: ${why})`)}
+    setS(`Die Erkennung hat nicht funktioniert. Trag Produkt und Preis bitte selbst ein. (Technischer Grund: ${why} · ${file.type||'?'}, ${Math.round(file.size/1024)} KB)`)}
   finally{if(scan.token===token){scan.busy=false;renderScanVerdict()}}
 }
 
@@ -912,7 +938,9 @@ async function ocr(file,progress){
   ocrProgress=progress;
   if(!window.Tesseract){try{await loadScript('tesseract/tesseract.min.js')}catch(e){await loadScript(OCR_CDN)}}
   if(!ocrWorker){progress('Texterkennung wird vorbereitet (nur beim ersten Mal) …');ocrWorker=await makeOcrWorker()}
-  let canvas=await prepImage(file),data;
+  // Vorbereitetes Bild (besser lesbar); falls der Browser das Bild nicht öffnen kann, liest die Texterkennung die Datei selbst
+  let canvas,data;
+  try{canvas=await prepImage(file)}catch(e){console.warn('Bild-Vorbereitung nicht möglich, nutze Originaldatei',e);canvas=file}
   progress('Text wird gelesen …');
   try{({data}=await ocrWorker.recognize(canvas))}
   catch(e){
@@ -920,7 +948,8 @@ async function ocr(file,progress){
     console.warn('Erkennung fehlgeschlagen, zweiter Versuch',e);
     try{await ocrWorker.terminate()}catch(_){}
     ocrWorker=null;progress('Zweiter Versuch …');ocrWorker=await makeOcrWorker();
-    canvas=await prepImage(file,900);({data}=await ocrWorker.recognize(canvas));
+    try{canvas=await prepImage(file,900)}catch(_){canvas=file}
+    ({data}=await ocrWorker.recognize(canvas));
   }
   // Kein Preis gefunden? Zweiter Durchgang im Modus „verstreuter Text“ – findet große, frei stehende Preise besser
   if(!analyse(data).price){
@@ -934,11 +963,11 @@ async function ocr(file,progress){
 }
 /* Graustufen, dunkle Screenshots invertieren, kleine Bilder vergrößern – das verbessert die Erkennung deutlich */
 async function prepImage(file,maxW){
-  const bmp=await createImageBitmap(file);
-  let scale=bmp.width<1000?Math.min(2.5,1000/bmp.width):Math.min(1,(maxW||2200)/bmp.width);
-  if(maxW)scale=Math.min(scale,maxW/bmp.width);
-  scale=Math.min(scale,Math.sqrt(5e6/(bmp.width*bmp.height)));  // höchstens ca. 5 Megapixel (Speicher auf dem Handy)
-  const c=document.createElement('canvas');c.width=Math.round(bmp.width*scale);c.height=Math.round(bmp.height*scale);
+  const bmp=await decodeImage(file),W=imgW(bmp),H=imgH(bmp);
+  let scale=W<1000?Math.min(2.5,1000/W):Math.min(1,(maxW||2200)/W);
+  if(maxW)scale=Math.min(scale,maxW/W);
+  scale=Math.min(scale,Math.sqrt(5e6/(W*H)));  // höchstens ca. 5 Megapixel (Speicher auf dem Handy)
+  const c=document.createElement('canvas');c.width=Math.round(W*scale);c.height=Math.round(H*scale);
   const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(bmp,0,0,c.width,c.height);
   const im=x.getImageData(0,0,c.width,c.height),d=im.data;let sum=0;
   for(let i=0;i<d.length;i+=4){const g=.299*d[i]+.587*d[i+1]+.114*d[i+2];d[i]=d[i+1]=d[i+2]=g;sum+=g}
@@ -996,7 +1025,8 @@ function analyse(data){
   const shop=SHOPS.find(s=>kwHit(text,s.toLowerCase()))||'';
   return {name,price,alts,cat,shop};
 }
-$('#scanFile').addEventListener('change',e=>{const f=e.target.files[0];e.target.value='';if(f)handleImage(f)});
+// Feld erst nach dem Einlesen leeren – sonst verliert Android den Zugriff auf die Datei
+$('#scanFile').addEventListener('change',e=>{const f=e.target.files[0];if(f)handleImage(f).finally(()=>{e.target.value=''})});
 const drop=$('#drop');
 drop.addEventListener('dragover',e=>{e.preventDefault();drop.classList.add('over')});
 drop.addEventListener('dragleave',()=>drop.classList.remove('over'));
@@ -1305,7 +1335,7 @@ document.addEventListener('input',e=>{
   S.vars.find(x=>x.id===t.dataset.id).value=+t.value;
   C=compute(false);CB=compute(true);renderScenLive();
 });
-$('#importFile').addEventListener('change',e=>{const file=e.target.files[0];e.target.value='';if(file)importAny(file)});
+$('#importFile').addEventListener('change',e=>{const file=e.target.files[0];if(file)importAny(file).finally(()=>{e.target.value=''})});
 let rz;addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>document.querySelectorAll('.panel:not([hidden]) .chart').forEach(drawChartIn),120)});
 
 /* ---------- Kategorien & Budgets ---------- */
@@ -1896,8 +1926,12 @@ function tableImportSheet(sheets){
   };
 }
 const addDay=iso=>{const [y,m,d]=iso.split('-').map(Number),x=new Date(y,m-1,d+1);return `${x.getFullYear()}-${pad(x.getMonth()+1)}-${pad(x.getDate())}`};
-async function importAny(file){
-  const ext=(file.name.split('.').pop()||'').toLowerCase();
+async function importAny(picked){
+  const ext=(picked.name.split('.').pop()||'').toLowerCase();
+  // Sofort komplett einlesen (Android gibt den Dateizugriff nur kurz frei)
+  let file;
+  try{file=new File([await picked.arrayBuffer()],picked.name,{type:picked.type})}
+  catch(e){snack('Die Datei konnte nicht gelesen werden. Wähle sie bitte noch einmal aus.');return}
   try{
     if(ext==='json'){const d=JSON.parse(await readText(file));if(!valid(d))throw new Error('Das ist keine Finanzplaner-Sicherung.');
       sheet.close();commit(()=>{S=d;S.ui=S.ui||{};S.vars=S.vars||[];S.marks=S.marks||{};S.skipped=S.skipped||[]},'Sicherung importiert');return}
