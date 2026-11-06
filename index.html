@@ -887,25 +887,41 @@ async function handleImage(file){
     $('#ocrText').hidden=false;$('#ocrText pre').textContent=(data.text||'').trim();
     setS(r.price?'Erkannt. Prüfe kurz Name, Preis und Kategorie.':'Kein Preis erkannt – bitte selbst eintragen.');
     if(!r.price)$('#sPrice').focus();
-  }catch(e){setS('Die Texterkennung konnte nicht geladen werden. Prüfe deine Internetverbindung oder trag Produkt und Preis selbst ein.')}
+  }catch(e){
+    const why=String(e&&(e.message||e)||'unbekannt').slice(0,140);
+    setS(/image|bitmap|decode/i.test(why)?'Dieses Bild konnte nicht geöffnet werden. Versuche einen anderen Screenshot oder trag Produkt und Preis selbst ein.'
+      :`Die Texterkennung hat nicht funktioniert. Trag Produkt und Preis bitte selbst ein. (Technischer Grund: ${why})`)}
   finally{if(scan.token===token){scan.busy=false;renderScanVerdict()}}
 }
 
 /* ---------- Texterkennung direkt auf dem Gerät (Tesseract.js) ---------- */
 let ocrWorker=null,ocrProgress=()=>{};
-function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>rej(new Error('load'));document.head.appendChild(s)})}
+function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>rej(new Error('Datei nicht ladbar: '+src.split('/').pop()));document.head.appendChild(s)})}
+/* Die Texterkennung liegt im Ordner „tesseract“ der App selbst (kein externer Server nötig, funktioniert offline).
+   Nur wenn dort etwas fehlt, wird ersatzweise der öffentliche Server cdn.jsdelivr.net genutzt. */
+const OCR_CDN='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+const ocrLogger=m=>{
+  if(m.status==='recognizing text')ocrProgress('Text wird gelesen … '+Math.round(m.progress*100)+' %');
+  else if(/load|initializ/.test(m.status))ocrProgress('Texterkennung wird geladen … '+Math.round((m.progress||0)*100)+' %')};
+async function makeOcrWorker(){
+  const base=new URL('tesseract/',location.href).href;
+  try{return await Tesseract.createWorker('deu',1,{logger:ocrLogger,workerPath:base+'worker.min.js',corePath:base,langPath:base,workerBlobURL:false,gzip:true})}
+  catch(e){console.warn('Eigene Texterkennung nicht ladbar, nutze CDN',e);return await Tesseract.createWorker('deu',1,{logger:ocrLogger})}
+}
 async function ocr(file,progress){
   ocrProgress=progress;
-  if(!window.Tesseract)await loadScript('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js');
-  if(!ocrWorker){
-    progress('Texterkennung wird vorbereitet (nur beim ersten Mal) …');
-    ocrWorker=await Tesseract.createWorker('deu',1,{logger:m=>{
-      if(m.status==='recognizing text')ocrProgress('Text wird gelesen … '+Math.round(m.progress*100)+' %');
-      else if(/load|initializ/.test(m.status))ocrProgress('Texterkennung wird geladen … '+Math.round((m.progress||0)*100)+' %')}});
-  }
-  const canvas=await prepImage(file);
+  if(!window.Tesseract){try{await loadScript('tesseract/tesseract.min.js')}catch(e){await loadScript(OCR_CDN)}}
+  if(!ocrWorker){progress('Texterkennung wird vorbereitet (nur beim ersten Mal) …');ocrWorker=await makeOcrWorker()}
+  let canvas=await prepImage(file),data;
   progress('Text wird gelesen …');
-  let {data}=await ocrWorker.recognize(canvas);
+  try{({data}=await ocrWorker.recognize(canvas))}
+  catch(e){
+    // z. B. zu wenig Arbeitsspeicher auf dem Handy: Erkennung neu starten und mit kleinerem Bild erneut versuchen
+    console.warn('Erkennung fehlgeschlagen, zweiter Versuch',e);
+    try{await ocrWorker.terminate()}catch(_){}
+    ocrWorker=null;progress('Zweiter Versuch …');ocrWorker=await makeOcrWorker();
+    canvas=await prepImage(file,900);({data}=await ocrWorker.recognize(canvas));
+  }
   // Kein Preis gefunden? Zweiter Durchgang im Modus „verstreuter Text“ – findet große, frei stehende Preise besser
   if(!analyse(data).price){
     progress('Suche genauer nach dem Preis …');
@@ -917,9 +933,11 @@ async function ocr(file,progress){
   return data;
 }
 /* Graustufen, dunkle Screenshots invertieren, kleine Bilder vergrößern – das verbessert die Erkennung deutlich */
-async function prepImage(file){
+async function prepImage(file,maxW){
   const bmp=await createImageBitmap(file);
-  const scale=bmp.width<1000?Math.min(2.5,1000/bmp.width):Math.min(1,2200/bmp.width);
+  let scale=bmp.width<1000?Math.min(2.5,1000/bmp.width):Math.min(1,(maxW||2200)/bmp.width);
+  if(maxW)scale=Math.min(scale,maxW/bmp.width);
+  scale=Math.min(scale,Math.sqrt(5e6/(bmp.width*bmp.height)));  // höchstens ca. 5 Megapixel (Speicher auf dem Handy)
   const c=document.createElement('canvas');c.width=Math.round(bmp.width*scale);c.height=Math.round(bmp.height*scale);
   const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(bmp,0,0,c.width,c.height);
   const im=x.getImageData(0,0,c.width,c.height),d=im.data;let sum=0;

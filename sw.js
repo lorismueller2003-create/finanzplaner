@@ -1,7 +1,7 @@
 // Offline-Speicher für den Finanzplaner.
-// Eigene Dateien: erst Netz (damit Updates ankommen), sonst Cache. Schriften und Texterkennung: erst Cache.
-const SHELL = 'finanzplaner-shell-v4';
-const RUNTIME = 'finanzplaner-runtime-v1';
+// Eigene Dateien: erst Netz (damit Updates ankommen), sonst Cache. Texterkennung: erst Cache.
+const SHELL = 'finanzplaner-shell-v5';
+const RUNTIME = 'finanzplaner-runtime-v2';
 const META = 'finanzplaner-meta';
 
 // Erinnerung zum Monatsende: Chrome weckt installierte Apps regelmäßig (Periodic Background Sync)
@@ -39,18 +39,20 @@ self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
-  if (url.origin === location.origin) {
-    e.respondWith(
-      fetch(req)
-        .then(res => { const copy = res.clone(); caches.open(SHELL).then(c => c.put(req, copy)); return res; })
-        .catch(() => caches.match(req).then(m => m || caches.match('index.html')))
-    );
+  // Fremde Server (z. B. Schriften, Bibliotheken für den Import) nicht abfangen – der Browser lädt sie selbst
+  if (url.origin !== location.origin) return;
+  // Texterkennung (große, unveränderliche Dateien): erst Cache, sonst Netz
+  if (url.pathname.includes('/tesseract/')) {
+    e.respondWith(caches.open(RUNTIME).then(c => c.match(req).then(hit => hit || fetch(req).then(res => {
+      if (res.ok) c.put(req, res.clone()).catch(() => {});
+      return res;
+    }))));
     return;
   }
+  // App-Dateien: erst Netz (damit Updates ankommen), offline aus dem Cache
   e.respondWith(
-    caches.open(RUNTIME).then(c => c.match(req).then(hit => hit || fetch(req).then(res => {
-      if (res.ok || res.type === 'opaque') c.put(req, res.clone());
-      return res;
-    })))
+    fetch(req)
+      .then(res => { if (res.ok) { const copy = res.clone(); caches.open(SHELL).then(c => c.put(req, copy)).catch(() => {}); } return res; })
+      .catch(() => caches.match(req).then(m => m || caches.match('index.html')))
   );
 });
