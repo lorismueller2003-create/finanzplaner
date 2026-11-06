@@ -1,6 +1,6 @@
 // Offline-Speicher für den Finanzplaner.
 // Eigene Dateien: erst Netz (damit Updates ankommen), sonst Cache. Texterkennung: erst Cache.
-const SHELL = 'finanzplaner-shell-v8';
+const SHELL = 'finanzplaner-shell-v10';
 const RUNTIME = 'finanzplaner-runtime-v2';
 const META = 'finanzplaner-meta';
 

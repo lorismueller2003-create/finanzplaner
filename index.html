@@ -182,7 +182,25 @@ main{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px
 .wdetail img{width:100%;max-height:46vh;object-fit:contain;border-radius:14px;background:var(--surface-2)}
 /* Auswahl-Gruppe (mehrere Produkte, nur eins wird gekauft) */
 .wcmp{grid-column:1/-1;background:var(--surface);border-radius:18px;box-shadow:var(--shadow);padding:12px;border:2px solid var(--accent-soft);min-width:0}
-.wcmp-h{display:flex;justify-content:space-between;gap:10px;align-items:flex-end;margin-bottom:10px}
+.wcmp-h{display:flex;justify-content:space-between;gap:10px;align-items:flex-end;margin-bottom:10px;width:100%;border:0;background:none;padding:0;font:inherit;color:inherit;cursor:pointer;text-align:left}
+.grip{position:absolute;top:6px;left:6px;width:32px;height:32px;border-radius:10px;background:color-mix(in srgb,var(--surface) 85%,transparent);color:var(--ink-2);display:grid;place-items:center;touch-action:none;cursor:grab;box-shadow:var(--shadow)}
+.grip svg{width:18px;height:18px}
+.wmini.dragging{opacity:.75;transform:scale(1.04);box-shadow:0 8px 24px rgba(0,0,0,.25);z-index:2}
+.gal{position:relative}
+.gal-track{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;border-radius:14px;background:var(--surface-2)}
+.gal-track::-webkit-scrollbar{display:none}
+.gal-item{flex:0 0 100%;scroll-snap-align:center;position:relative;display:grid;place-items:center}
+.gal-item img{width:100%;max-height:46vh;object-fit:contain;border-radius:0;background:transparent}
+.gal-del{position:absolute;top:8px;right:8px;width:34px;height:34px;border-radius:50%;border:0;background:color-mix(in srgb,var(--surface) 88%,transparent);color:var(--ink);cursor:pointer;font-weight:700;box-shadow:var(--shadow)}
+.gal-dots{display:flex;justify-content:center;gap:6px;margin-top:8px}
+.gal-dots span{width:7px;height:7px;border-radius:50%;background:var(--line)}
+.gal-dots span.on{background:var(--accent)}
+.imgn{position:absolute;bottom:6px;right:6px;font-size:11px;font-weight:700;border-radius:999px;padding:2px 7px;background:color-mix(in srgb,var(--ink) 70%,transparent);color:var(--bg)}
+.stepper{display:flex;align-items:center;gap:6px}
+.stepper button{width:40px;height:40px;border-radius:12px;border:1px solid var(--line);background:var(--surface);font-size:20px;font-weight:700;cursor:pointer;color:inherit}
+.stepper b{min-width:2ch;text-align:center;font-family:var(--display);font-size:22px}
+.gitem{display:grid;grid-template-columns:96px 1fr;gap:12px;padding:10px 0;border-bottom:1px solid var(--grid);text-align:left;background:none;border-left:0;border-right:0;border-top:0;width:100%;font:inherit;color:inherit;cursor:pointer}
+.gitem img,.gitem .ph{width:96px;height:96px;border-radius:12px;object-fit:cover;background:var(--surface-2)}
 .wcmp-t{font-family:var(--display);font-size:18px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .wcmp-row{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
 .wcmp-row::-webkit-scrollbar{display:none}
@@ -372,6 +390,7 @@ body{margin:0}img{max-width:100%}[hidden]{display:none!important}
   <section class="panel" id="p-wish" aria-label="Einkaufsliste" hidden></section>
 </main>
 <input type="file" id="wishFile" accept="image/*" class="sr">
+<input type="file" id="wishExtraFile" accept="image/*" multiple class="sr">
 
 <button class="fab" id="fab" data-act="add" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Buchung</button>
 
@@ -396,7 +415,7 @@ const DEFAULT_CATS=['Einkommen','Lebensmittel','Essen & Freizeit','Kleidung','Mo
 const WISH_KW={
   'Parfüm':['parfum','parfüm','eau de','edp','edt','toilette','cologne','duft','fragrance','perfume','aftershave','body mist'],
   'Kleidung':['schuh','sneaker','stiefel','boots','jacke','mantel','hose','jeans','t-shirt','shirt','pullover','pulli','hoodie','sweatshirt','kleid','mütze','schal','socken','bluse','hemd','weste','zalando','about you','snipes'],
-  'Elektronik':['kopfhörer','headphone','earbuds','airpods','smartphone','handy','iphone','galaxy','laptop','notebook','macbook','tablet','ipad','monitor','fernseher','konsole','playstation','ps5','xbox','nintendo','kamera','smartwatch','lautsprecher','speaker','ladegerät','powerbank','bluetooth','ssd','grafikkarte','tastatur','gaming','mediamarkt','saturn'],
+  'Elektronik':['kopfhörer','headphone','earbuds','airpods','smartphone','handy','iphone','galaxy','laptop','notebook','macbook','tablet','ipad','monitor','fernseher','konsole','playstation','ps5','xbox','nintendo','kamera','smartwatch','lautsprecher','speaker','ladegerät','powerbank','bluetooth','ssd','grafikkarte','tastatur','gaming','mediamarkt','saturn','headphones','wireless','noise cancelling','sony','bose','jbl','logitech','lenovo','asus','xiaomi','anker','garmin'],
   'Beauty & Pflege':['creme','shampoo','make-up','makeup','lippenstift','mascara','serum','rasierer','zahnbürste','lotion','nagellack','foundation','concealer','föhn','glätteisen','douglas','rossmann'],
   'Schmuck & Accessoires':['uhr','armbanduhr','kette','ring','armband','ohrring','sonnenbrille','handtasche','tasche','rucksack','geldbörse','portemonnaie','gürtel','cap'],
   'Haushalt & Wohnen':['küche','topf','pfanne','staubsauger','kaffeemaschine','wasserkocher','bettwäsche','handtuch','lampe','regal','möbel','deko','kissen','decke','teppich','ikea','vase','geschirr','mixer'],
@@ -412,7 +431,7 @@ function syncCats(){
   if(!S.cats.includes('Sonstiges'))S.cats.push('Sonstiges');
   CATS=['Einkommen',...S.cats.filter(c=>c!=='Einkommen')];EXP_CATS=CATS.slice(1);
   S.budgets=S.budgets||{};S.goals=S.goals||[];S.learn=S.learn||{};
-  S.wish=S.wish||[];S.wishLearn=S.wishLearn||{};
+  S.wish=S.wish||[];S.wishLearn=S.wishLearn||{};S.wishGroupMeta=S.wishGroupMeta||{};
   if(!Array.isArray(S.wishCats)||!S.wishCats.length)S.wishCats=WISH_CATS.slice();
   for(const w of S.wish)if(w.cat&&!S.wishCats.includes(w.cat))S.wishCats.push(w.cat);
 }
@@ -594,7 +613,7 @@ function setTab(t,quiet){
   for(const [k,id] of [['start','p-start'],['buchungen','p-buchungen'],['scan','p-scan'],['szen','p-szen'],['ausw','p-ausw'],['einkauf','p-wish']])$('#'+id).hidden=k!==t;
   document.querySelectorAll('.nav button').forEach(b=>b.setAttribute('aria-current',b.dataset.tab===t?'page':'false'));
   const fab=$('#fab');fab.hidden=t!=='buchungen'&&t!=='einkauf';
-  fab.dataset.act=t==='einkauf'?'wishShot':'add';fab.lastChild.textContent=t==='einkauf'?'Produkt':'Buchung';
+  fab.dataset.act=t==='einkauf'?'wishAdd':'add';fab.lastChild.textContent=t==='einkauf'?'Produkt':'Buchung';
   $('#title').textContent={start:'Finanzplaner',buchungen:'Buchungen',scan:'Kauf prüfen',szen:'Ziele & Szenarien',ausw:'Auswertung',einkauf:'Einkaufsliste'}[t];
   try{localStorage.setItem(KEY+':tab',t)}catch(e){}
   if(!quiet){window.scrollTo(0,0);requestAnimationFrame(()=>document.querySelectorAll('.panel:not([hidden]) .chart').forEach(drawChartIn))}
@@ -714,13 +733,16 @@ function renderBookings(){
 
 /* Diagramm */
 function niceStep(r){const p=Math.pow(10,Math.floor(Math.log10(r||1)));const n=r/p;return(n<=1?1:n<=2?2:n<=5?5:10)*p}
-function drawChartIn(el){
+/* custom = {P,PB,baseLabel,newLabel,markIdx}: zwei eigene Verläufe vergleichen (z. B. „ohne Kauf“ / „mit Kauf“) */
+function drawChartIn(el,custom){
   if(!el||!el.offsetParent)return;
+  const cu=custom||el.__custom;if(cu)el.__custom=cu;
   const W=Math.max(260,el.clientWidth),H=el.clientHeight||210,pl=52,pr=8,pt=8,pb=22;
   // Übersicht: nur der Verlauf (mit Szenario). Reiter Szenarien: zusätzlich die Änderung gegenüber dem Ausgangswert.
   // Nur ab dem aktuellen Monat zeigen (Startpunkt = Kontostand am Monatsanfang)
   const k=C.pts.findIndex(p=>p.m>=TODAY_M),s0=k>0?k-1:0;
-  const P=C.pts.slice(s0),PB=CB.pts.slice(s0),n=P.length,diff=el.dataset.compare==='1'&&S.vars.some(v=>v.value!==v.base),thr=thrC();
+  const P=cu?cu.P:C.pts.slice(s0),PB=cu?cu.PB:CB.pts.slice(s0),n=P.length,diff=!!cu||(el.dataset.compare==='1'&&S.vars.some(v=>v.value!==v.base)),thr=thrC();
+  const L=cu?{base:cu.baseLabel,neu:cu.newLabel,delta:cu.newLabel}:{base:'Ausgangswert',neu:'Verändertes Szenario',delta:'Szenario'};
   const vals=P.map(p=>p.bal).concat(diff?PB.map(p=>p.bal):[],[0,thr]);
   let lo=Math.min(...vals),hi=Math.max(...vals);const step=niceStep((hi-lo)/4);lo=Math.floor(lo/step)*step;hi=Math.ceil(hi/step)*step;
   const x=i=>pl+(W-pl-pr)*(n<2?0:i/(n-1)),y=v=>pt+(H-pt-pb)*(1-(v-lo)/((hi-lo)||1));
@@ -735,17 +757,18 @@ function drawChartIn(el){
   const col=diff?(up>=0?'var(--pos)':'var(--neg)'):'var(--line-blue)';
   if(diff)g+=`<path d="${path(PB)}" fill="none" stroke="var(--line-blue)" stroke-width="2" stroke-linejoin="round"/>`;
   g+=`<path d="${path(P)}" fill="none" stroke="${col}" stroke-width="${diff?2.75:2}" stroke-linejoin="round"/>`;
+  if(cu&&cu.markIdx>=0){const mx=x(cu.markIdx);g+=`<line x1="${mx}" x2="${mx}" y1="${pt}" y2="${H-pb}" stroke="${col}" stroke-dasharray="3 3"/><text x="${Math.min(W-pr-24,mx+4)}" y="${pt+11}" font-size="10.5" font-weight="700" fill="${col}">Kauf</text>`}
   g+=`<line class="xh" y1="${pt}" y2="${H-pb}" stroke="var(--muted)" visibility="hidden"/><circle class="xd" r="5" fill="${col}" stroke="var(--surface)" stroke-width="2" visibility="hidden"/>`;
   el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Verlauf des Kontostands">${g}</svg><div class="tip" hidden></div>`;
   const tip=el.querySelector('.tip'),xh=el.querySelector('.xh'),xd=el.querySelector('.xd');
   const show=e=>{const r=el.getBoundingClientRect();const i=Math.max(0,Math.min(n-1,Math.round((e.clientX-r.left-pl)/(W-pl-pr)*(n-1))));const p=P[i];
     xh.setAttribute('x1',x(i));xh.setAttribute('x2',x(i));xh.setAttribute('visibility','visible');xd.setAttribute('cx',x(i));xd.setAttribute('cy',y(p.bal));xd.setAttribute('visibility','visible');
-    tip.innerHTML=`<div class="sub">${esc(p.date||mName(p.m))}</div><div>${esc(p.label)}${p.a!=null?` <span class="${p.a<0?'neg':'pos'}">${eur(p.a)}</span>`:''}</div><b>${eur(p.bal)}</b>${diff&&PB[i].bal!==p.bal?`<div class="sub">Ausgangswert ${eur(PB[i].bal)}</div><div class="${p.bal<PB[i].bal?'neg':'pos'}" style="font-weight:700">Szenario: ${p.bal>PB[i].bal?'+':''}${eur(p.bal-PB[i].bal)}</div>`:''}`;
+    tip.innerHTML=`<div class="sub">${esc(p.date||mName(p.m))}</div><div>${esc(p.label)}${p.a!=null?` <span class="${p.a<0?'neg':'pos'}">${eur(p.a)}</span>`:''}</div><b>${eur(p.bal)}</b>${diff&&PB[i].bal!==p.bal?`<div class="sub">${esc(L.base)} ${eur(PB[i].bal)}</div><div class="${p.bal<PB[i].bal?'neg':'pos'}" style="font-weight:700">${esc(L.delta)}: ${p.bal>PB[i].bal?'+':''}${eur(p.bal-PB[i].bal)}</div>`:''}`;
     tip.hidden=false;const tx=x(i)+12+tip.offsetWidth>W?x(i)-12-tip.offsetWidth:x(i)+12;tip.style.left=Math.max(0,tx)+'px';tip.style.top=Math.max(0,y(p.bal)-tip.offsetHeight-10)+'px'};
   const hide=()=>{tip.hidden=true;xh.setAttribute('visibility','hidden');xd.setAttribute('visibility','hidden')};
   el.onpointermove=show;el.onpointerdown=show;el.onpointerleave=hide;
   const lg=el.parentElement.querySelector('.legend');
-  if(lg)lg.innerHTML=diff?`<span><i></i>Ausgangswert</span><span><i class="${up>=0?'up':'down'}"></i>Verändertes Szenario (${up>=0?'besser':'schlechter'})</span><span><i class="thr"></i>Warnschwelle ${eur(thr)}</span>`
+  if(lg)lg.innerHTML=diff?`<span><i></i>${esc(L.base)}</span><span><i class="${up>=0?'up':'down'}"></i>${esc(L.neu)}${cu?'':` (${up>=0?'besser':'schlechter'})`}</span><span><i class="thr"></i>Warnschwelle ${eur(thr)}</span>`
     :`<span><i></i>Kontostand</span><span><i class="thr"></i>Warnschwelle ${eur(thr)}</span>`;
 }
 
@@ -1328,6 +1351,7 @@ function varSheet(id){
 /* ---------- Ereignisse ---------- */
 document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
 document.addEventListener('click',async e=>{
+  if(e.target.closest('[data-drag]'))return;  // Griff zum Sortieren öffnet nichts
   const t=e.target.closest('[data-act]');if(!t||t.tagName==='SELECT'||t.type==='range')return;
   const id=t.dataset.id,a=t.dataset.act;
   switch(a){
@@ -1344,7 +1368,7 @@ document.addEventListener('click',async e=>{
     case 'removeMonth':{const m=S.lastMonth;if(!await ask(`${mName(m)} mit allen Buchungen entfernen?`,'Entfernen',true))break;
       commit(()=>{S.bookings=S.bookings.filter(b=>b.month!==m);S.lastMonth=addM(m,-1);view.month=S.lastMonth},`${mName(m)} entfernt`);break}
     case 'rules':if(sheet.open)sheet.close();rulesSheet();break;
-    case 'export':saveFile('Finanzplaner-Sicherung-'+TODAY+'.json',JSON.stringify({...S,wishImages:Object.fromEntries([...wishImg].filter(([k])=>S.wish.some(w=>w.id===k)))},null,1),'application/json');break;
+    case 'export':saveFile('Finanzplaner-Sicherung-'+TODAY+'.json',JSON.stringify({...S,wishImages:Object.fromEntries([...wishImg].filter(([k])=>S.wish.some(w=>w.id===k||(w.extra||[]).includes(k))))},null,1),'application/json');break;
     case 'import':$('#importFile').click();break;
     case 'csv':exportCSV();break;
     case 'reset':sheet.close();if(await ask('Alle Daten auf diesem Handy löschen und neu anfangen? Exportiere vorher eine Sicherung, wenn du sie behalten willst.','Alles löschen',true)){commit(()=>{S=blank(TODAY,0)});welcomeSheet()}break;
@@ -1359,6 +1383,11 @@ document.addEventListener('click',async e=>{
     case 'wishCat':view.wishCat=t.dataset.c||'';renderWish();break;
     case 'wishCats':wishCatsSheet();break;
     case 'wishCompare':wishCompare(t.dataset.g);break;
+    case 'wishImgAdd':view.wishExtraFor=id;$('#wishExtraFile').click();break;
+    case 'wishImgDel':{const k=t.dataset.k;commit(()=>{const w=S.wish.find(x=>x.id===id);if(w)w.extra=(w.extra||[]).filter(x=>x!==k)},'Bild gelöscht');wishDetail(id);break}
+    case 'wishWant':{const g=t.dataset.g,n=Math.max(1,Math.min(groupItems(g).length,groupWant(g)+ +t.dataset.d));commit(()=>setGroupWant(g,n));wishCompare(g);break}
+    case 'wishAdd':wishAddChooser();break;
+    case 'wishLink':if(sheet.open)sheet.close();linkSheet('');break;
     case 'wishAddTo':if(sheet.open)sheet.close();view.wishEditId=null;view.wishPresetGroup=t.dataset.g||'';$('#wishFile').click();break;
     case 'importData':if(sheet.open)sheet.close();importSheet();break;
     case 'notify':await toggleNotify();if(sheet.open){sheet.close();settingsSheet()}break;
@@ -2057,8 +2086,13 @@ const LEVEL_TXT={green:'leistbar',yellow:'knapp',orange:'lieber warten',red:'nic
 /* Auswahl-Gruppen: mehrere Produkte, von denen man nur eins kaufen will (z. B. drei Winterstiefel).
    In Summen zählt eine Gruppe nur mit dem Durchschnittspreis ihrer Produkte. */
 const groupKey=g=>String(g||'').trim().toLowerCase();
-const groupItems=g=>S.wish.filter(w=>w.group&&groupKey(w.group)===groupKey(g));
+// Reihenfolge innerhalb einer Gruppe: per Drag & Drop festgelegt (gorder), sonst nach Hinzufügedatum
+const groupItems=g=>S.wish.filter(w=>w.group&&groupKey(w.group)===groupKey(g))
+  .sort((a,b)=>(a.gorder??1e9)-(b.gorder??1e9)||String(a.added||'').localeCompare(String(b.added||'')));
 const wishGroups=()=>[...new Map(S.wish.filter(w=>w.group).map(w=>[groupKey(w.group),w.group])).values()];
+// Wie viele Produkte einer Gruppe man kaufen will (Standard 1)
+const groupWant=g=>{const n=groupItems(g).length,m=(S.wishGroupMeta||{})[groupKey(g)];return Math.max(1,Math.min(n||1,(m&&m.want)||1))};
+function setGroupWant(g,want){S.wishGroupMeta=S.wishGroupMeta||{};S.wishGroupMeta[groupKey(g)]={...(S.wishGroupMeta[groupKey(g)]||{}),want}}
 function wishEntries(){
   const out=[],seen=new Set();
   for(const w of S.wish){
@@ -2066,8 +2100,10 @@ function wishEntries(){
     if(items.length>1){
       if(seen.has(k))continue;seen.add(k);
       const pr=items.filter(x=>x.price>0).map(x=>x.price),cc=new Map();items.forEach(x=>cc.set(x.cat,(cc.get(x.cat)||0)+1));
-      out.push({type:'group',name:items[0].group,items,cat:[...cc].sort((a,b)=>b[1]-a[1])[0][0],
-        price:pr.length?Math.round(pr.reduce((s,x)=>s+x,0)/pr.length*100)/100:0,min:pr.length?Math.min(...pr):0,max:pr.length?Math.max(...pr):0,
+      const avg=pr.length?pr.reduce((s,x)=>s+x,0)/pr.length:0,want=groupWant(w.group);
+      // In Summen zählt: Durchschnittspreis × Anzahl, die man kaufen will
+      out.push({type:'group',name:items[0].group,items,want,avg:Math.round(avg*100)/100,cat:[...cc].sort((a,b)=>b[1]-a[1])[0][0],
+        price:Math.round(avg*want*100)/100,min:pr.length?Math.min(...pr):0,max:pr.length?Math.max(...pr):0,
         added:items.map(x=>x.added||'').sort().at(-1)});
     }else out.push({type:'item',w,cat:w.cat,price:w.price||0,added:w.added||''});
   }
@@ -2083,19 +2119,20 @@ function renderWish(){
   const sum=list=>list.reduce((s,e)=>s+cents(e.price||0),0),count=c=>all.filter(w=>w.cat===c).length;
   const nProducts=entries.reduce((s,e)=>s+(e.type==='group'?e.items.length:1),0),nGroups=entries.filter(e=>e.type==='group').length;
   const dot=w=>{const lv=wishLevel(w);return lv?`<span class="wdot ${lv}" title="Heute ${LEVEL_TXT[lv]}"></span>`:''};
-  const card=w=>{const img=wishImg.get(w.id);
-    return `<button type="button" class="wcard" data-act="wishOpen" data-id="${w.id}"><div class="wimg">${img?`<img src="${img}" alt="">`:'Kein Bild'}${dot(w)}</div>
+  const card=w=>{const img=wishImg.get(w.id)||w.imgUrl;
+    return `<button type="button" class="wcard" data-act="wishOpen" data-id="${w.id}"><div class="wimg">${img?`<img src="${esc(img)}" alt="" referrerpolicy="no-referrer">`:'Kein Bild'}${dot(w)}${(w.extra||[]).length?`<span class="imgn">+${w.extra.length}</span>`:''}</div>
       <div class="wbody"><div class="wname">${esc(w.name)}</div><div class="wprice">${w.price>0?eur(cents(w.price)):'–'}</div><div class="wcat">${esc(w.cat)}${w.shop?' · '+esc(w.shop):''}</div></div></button>`};
-  const groupCard=e=>{
-    const sorted=e.items.slice().sort((a,b)=>(a.price>0?a.price:1e9)-(b.price>0?b.price:1e9));
-    return `<div class="wcmp"><div class="wcmp-h"><div style="min-width:0"><div class="label">Auswahl · du willst nur 1 davon</div><b class="wcmp-t">${esc(e.name)}</b>
-        <div class="sub">${e.items.length} Produkte${e.min?` · ${eur(cents(e.min))} bis ${eur(cents(e.max))}`:''}</div></div>
-        <div style="text-align:right;flex:none"><div class="label">zählt mit Ø</div><div class="wprice">${e.price?eur(cents(e.price)):'–'}</div></div></div>
-      <div class="wcmp-row">${sorted.map(w=>{const img=wishImg.get(w.id),d=w.price>0&&e.min>0?w.price-e.min:0;
-        return `<button type="button" class="wcard wmini" data-act="wishOpen" data-id="${w.id}"><div class="wimg">${img?`<img src="${img}" alt="">`:'Kein Bild'}${dot(w)}</div>
+  const groupCard=e=>`<div class="wcmp" data-group="${esc(e.name)}">
+      <button type="button" class="wcmp-h" data-act="wishCompare" data-g="${esc(e.name)}" aria-label="Gruppe ${esc(e.name)} öffnen"><span style="min-width:0;text-align:left">
+        <span class="label" style="display:block">Auswahl · du willst ${e.want===1?'1':e.want} davon</span><b class="wcmp-t">${esc(e.name)} ›</b>
+        <span class="sub" style="display:block">${e.items.length} Produkte${e.min?` · ${eur(cents(e.min))} bis ${eur(cents(e.max))}`:''}</span></span>
+        <span style="text-align:right;flex:none"><span class="label" style="display:block">zählt mit Ø${e.want>1?' × '+e.want:''}</span><span class="wprice" style="display:block">${e.price?eur(cents(e.price)):'–'}</span></span></button>
+      <div class="wcmp-row">${e.items.map(w=>{const img=wishImg.get(w.id)||w.imgUrl,d=w.price>0&&e.min>0?w.price-e.min:0;
+        return `<button type="button" class="wcard wmini" data-act="wishOpen" data-id="${w.id}"><div class="wimg">${img?`<img src="${esc(img)}" alt="" referrerpolicy="no-referrer">`:'Kein Bild'}${dot(w)}
+            <span class="grip" data-drag="${w.id}" title="Ziehen zum Sortieren" aria-label="Verschieben"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></span></div>
           <div class="wbody"><div class="wname">${esc(w.name)}</div><div class="wprice" style="font-size:15px">${w.price>0?eur(cents(w.price)):'–'}</div>
           <div class="wcat">${w.price>0&&w.price===e.min?'<span class="best">günstigste</span>':d>0?`+${eur(cents(d))}`:''}</div></div></button>`}).join('')}</div>
-      <div class="row" style="margin-top:10px"><button class="btn tonal" type="button" data-act="wishCompare" data-g="${esc(e.name)}">Preise vergleichen</button><button class="btn" type="button" data-act="wishAddTo" data-g="${esc(e.name)}">+ Weiteres</button></div></div>`};
+      <div class="row" style="margin-top:10px"><button class="btn tonal" type="button" data-act="wishCompare" data-g="${esc(e.name)}">Alle ansehen &amp; vergleichen</button><button class="btn" type="button" data-act="wishAddTo" data-g="${esc(e.name)}">+ Weiteres</button></div></div>`;
   const tile=e=>e.type==='group'?groupCard(e):card(e.w);
   let grid;
   if(!entries.length)grid=`<div class="card sub">${all.length?'In dieser Kategorie ist nichts.':'Noch leer. Tipp unten rechts auf „Produkt“ und lade einen Screenshot hoch – Bild, Name, Preis und Kategorie werden erkannt.'}</div>`;
@@ -2104,12 +2141,12 @@ function renderWish(){
   else grid=`<div class="wgrid">${entries.map(tile).join('')}</div>`;
   el.innerHTML=`<div class="card"><div class="mhead"><div><div class="label">${view.wishCat?esc(view.wishCat):'Alle Produkte'}</div><h2 style="font-size:20px;margin:0">${nProducts} ${nProducts===1?'Produkt':'Produkte'}</h2></div>
       <div><div class="label" style="text-align:right">zusammen</div><div class="end">${eur(sum(entries))}</div></div></div>
-     <p class="sub" style="margin:8px 0 0">${nGroups?`Bei ${nGroups===1?'der Auswahl':'Auswahlen'} (nur 1 Produkt davon) zählt der Durchschnittspreis. `:''}Zählt nicht zu deinem Kontostand. Der Punkt am Bild zeigt, ob du es dir heute leisten könntest: grün = ja, gelb = knapp, rot = lieber nicht.</p></div>
+     <p class="sub" style="margin:8px 0 0">${nGroups?`Bei Auswahl-Gruppen zählt der Durchschnittspreis × die Anzahl, die du kaufen willst. `:''}Zählt nicht zu deinem Kontostand. Der Punkt am Bild zeigt, ob du es dir heute leisten könntest: grün = ja, gelb = knapp, rot = lieber nicht.</p></div>
    <div class="stick">${all.length?`<div class="chips">${['',...S.wishCats.filter(c=>count(c))].map(c=>`<button type="button" class="chip ${c===(view.wishCat||'')?'on':''}" data-act="wishCat" data-c="${esc(c)}">${c?esc(c)+' · '+count(c):'Alle · '+all.length}</button>`).join('')}</div>
     <div class="row" style="align-items:center;margin:2px 0 8px;flex-wrap:nowrap"><label class="sub" for="wishSort" style="flex:none">Sortieren</label><select id="wishSort" data-act="wishSort" style="flex:1;min-width:0;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:8px 9px">
      <option value="cat" ${sort==='cat'?'selected':''}>nach Kategorie</option><option value="asc" ${sort==='asc'?'selected':''}>Preis: günstigste zuerst</option><option value="desc" ${sort==='desc'?'selected':''}>Preis: teuerste zuerst</option><option value="neu" ${sort==='neu'?'selected':''}>Zuletzt hinzugefügt</option></select></div>`:''}</div>
    ${grid}
-   <div class="row"><button class="btn" type="button" data-act="wishShot">+ Screenshot</button><button class="btn" type="button" data-act="wishManual">+ Ohne Screenshot</button><button class="btn" type="button" data-act="wishCats">Kategorien</button></div>`;
+   <div class="row"><button class="btn" type="button" data-act="wishShot">+ Screenshot</button><button class="btn" type="button" data-act="wishLink">+ Link</button><button class="btn" type="button" data-act="wishManual">+ Manuell</button><button class="btn" type="button" data-act="wishCats">Kategorien</button></div>`;
 }
 /* Bildausschnitt: größter Bereich ohne Text (dort ist meist das Produktfoto) */
 function autoCropFrom(d){
@@ -2147,12 +2184,14 @@ function initCrop(st){
   wrap.onpointerup=wrap.onpointercancel=()=>{if(st.crop&&(st.crop.w<0.05||st.crop.h<0.03))st.crop=st.autoCrop||null;p0=null;show()};
 }
 function wishSheet(id,st){
-  const w=id?S.wish.find(x=>x.id===id):{name:'',price:0,cat:'',shop:'',link:'',note:''};if(!w)return;
+  const pf=(st&&st.prefill)||{};
+  const w=id?S.wish.find(x=>x.id===id):{name:pf.name||'',price:pf.price||0,cat:pf.cat||'',shop:pf.shop||'',link:pf.link||'',note:''};if(!w)return;
   wishSt=st||null;
-  const img=id?wishImg.get(id):null,cat=w.cat||(S.wishCats.includes('Sonstiges')?'Sonstiges':S.wishCats[0]);
+  const img=id?(wishImg.get(id)||w.imgUrl):(st&&st.imgUrl)||null,cat=w.cat||(S.wishCats.includes('Sonstiges')?'Sonstiges':S.wishCats[0]);
+  const groups=wishGroups(),curG=w.group||(st&&st.group)||'',curGSel=groups.find(g=>groupKey(g)===groupKey(curG))||'';
   const imgBox=st&&st.file?`<div class="crop" id="wCrop"><img id="wCropImg" alt="Screenshot"><div class="box" id="wBox" hidden></div></div>
       <p class="sub" style="margin:0">Zieh mit dem Finger einen Rahmen um das Produktfoto – dieser Ausschnitt wird als Bild gespeichert.</p>`
-    :img?`<div class="wdetail"><img src="${img}" alt=""></div><button class="btn" type="button" data-act="wishImgChange" data-id="${id}">Anderes Bild wählen</button>`
+    :img?`<div class="wdetail"><img src="${esc(img)}" alt="" referrerpolicy="no-referrer"></div><button class="btn" type="button" data-act="wishImgChange" data-id="${id||''}">Anderes Bild wählen (Screenshot)</button>`
     :`<button class="btn" type="button" data-act="wishImgChange" data-id="${id||''}">Bild hinzufügen (Screenshot)</button>`;
   openSheet(id?'Produkt bearbeiten':'Zur Einkaufsliste',`<div class="stack">${imgBox}
     <div id="wStatus" class="sub" aria-live="polite"></div>
@@ -2162,9 +2201,12 @@ function wishSheet(id,st){
     <label class="field" id="wNewWrap" hidden><span>Name der neuen Kategorie</span><input id="wNew" name="newcat" placeholder="z. B. Sneaker" autocomplete="off"></label>
     <div class="grid2"><label class="field"><span>Shop (optional)</span><input id="wShop" name="shop" value="${esc(w.shop||'')}" autocomplete="off"></label>
      <label class="field"><span>Link (optional)</span><input id="wLink" name="link" inputmode="url" value="${esc(w.link||'')}" placeholder="https://…" autocomplete="off"></label></div>
-    <label class="field"><span>Auswahl-Gruppe (optional)</span><input id="wGroup" name="group" list="wGroupList" value="${esc(w.group||(st&&st.group)||'')}" placeholder="z. B. Winterstiefel" autocomplete="off">
-     <datalist id="wGroupList">${wishGroups().map(g=>`<option value="${esc(g)}"></option>`).join('')}</datalist></label>
-    <p class="sub" style="margin:-6px 0 0">Mehrere Produkte, von denen du nur eins kaufen willst, bekommen dieselbe Gruppe. Sie werden dann nebeneinander verglichen und zählen in der Summe nur mit dem Durchschnittspreis.</p>
+    <label class="field"><span>Auswahl-Gruppe</span><select id="wGroupSel" name="groupSel">
+      <option value="">Keine – einzelnes Produkt</option>
+      ${groups.map(g=>`<option ${g===curGSel?'selected':''}>${esc(g)}</option>`).join('')}
+      <option value="__new" ${curG&&!curGSel?'selected':''}>+ Neue Gruppe …</option></select></label>
+    <label class="field" id="wGroupNewWrap" ${curG&&!curGSel?'':'hidden'}><span>Name der neuen Gruppe</span><input id="wGroupNew" name="groupNew" value="${esc(curG&&!curGSel?curG:'')}" placeholder="z. B. Winterstiefel" autocomplete="off"></label>
+    <p class="sub" style="margin:-6px 0 0">Produkte, zwischen denen du dich entscheiden willst (z. B. drei Winterstiefel), kommen in dieselbe Gruppe. Sie werden nebeneinander verglichen und zählen in der Summe nur mit dem Durchschnittspreis.</p>
     <label class="field"><span>Notiz (optional)</span><input id="wNote" name="note" value="${esc(w.note||'')}" placeholder="z. B. Größe 42, warten auf Sale" autocomplete="off"></label>
     <div class="msg" role="alert"></div></div>`,
    `${id?'<button class="btn danger" value="delete" formnovalidate>Löschen</button>':''}<span class="sp"></span><button class="btn primary" value="save">Speichern</button>`,
@@ -2174,9 +2216,12 @@ function wishSheet(id,st){
     const name=f.name.value.trim();if(!name)return showErr('Bitte einen Produktnamen eingeben.');
     const price=f.price.value.trim()?parseNum(f.price.value):0;if(isNaN(price)||price<0)return showErr('Bitte einen gültigen Preis eingeben, z. B. 49,99.');
     let c=f.cat.value;if(c==='__new'){c=f.newcat.value.trim();if(!c)return showErr('Bitte einen Namen für die neue Kategorie eingeben.')}
-    // Gruppenname wie bereits vorhanden schreiben (Groß-/Kleinschreibung egal)
-    const gIn=f.group.value.trim(),group=gIn?(wishGroups().find(g=>groupKey(g)===groupKey(gIn))||gIn):'';
+    // Gruppe: aus der Liste oder neu; gleiche Schreibweise wie vorhanden (Groß-/Kleinschreibung egal)
+    let gIn=f.groupSel.value;if(gIn==='__new'){gIn=f.groupNew.value.trim();if(!gIn)return showErr('Bitte einen Namen für die neue Gruppe eingeben.')}
+    const group=gIn?(wishGroups().find(g=>groupKey(g)===groupKey(gIn))||gIn):'';
     const rec={name,price:Math.round(price*100)/100,cat:c,shop:f.shop.value.trim(),link:safeUrl(f.link.value),note:f.note.value.trim(),group};
+    if(group&&groupKey(group)!==groupKey(w.group))rec.gorder=Math.max(-1,...groupItems(group).map(x=>x.gorder??-1))+1;  // neu in der Gruppe: hinten anstellen
+    if(!id&&st&&st.imgUrl&&!(st&&st.file))rec.imgUrl=st.imgUrl;
     const nid=id||'w'+uid(),s=wishSt,learn=(s&&s.guess&&c!==s.guess)||(id&&w.cat!==c);
     (async()=>{
       if(s&&s.file){try{const u=await cropToDataURL(s.file,s.crop);wishImg.set(nid,u);await IDB.put(nid,u)}catch(e){snack('Das Bild konnte nicht gespeichert werden.')}}
@@ -2189,7 +2234,9 @@ function wishSheet(id,st){
     })();
    });
   form.elements.cat.onchange=()=>{$('#wNewWrap').hidden=form.elements.cat.value!=='__new';if(!$('#wNewWrap').hidden)$('#wNew').focus()};
+  form.elements.groupSel.onchange=()=>{$('#wGroupNewWrap').hidden=form.elements.groupSel.value!=='__new';if(!$('#wGroupNewWrap').hidden)$('#wGroupNew').focus()};
   if(st&&st.file)initCrop(st);
+  if(st&&st.status)$('#wStatus').innerHTML=st.status;
 }
 async function handleWishImage(picked,editId){
   let file;
@@ -2218,37 +2265,86 @@ async function handleWishImage(picked,editId){
     status(r.price?`Erkannt: Kategorie „${esc(st.guess)}“. Prüfe kurz die Angaben – den Bildausschnitt kannst du mit dem Finger anpassen.`:'Kein Preis erkannt – bitte selbst eintragen.');
   }catch(e){status('Die Erkennung hat nicht funktioniert – trag die Angaben bitte selbst ein.')}
 }
+/* Alle Bilder eines Produkts: Hauptbild + weitere Bilder */
+function wishImgList(w){
+  const main=wishImg.get(w.id)||w.imgUrl,out=main?[{key:w.id,src:main,main:true}]:[];
+  for(const k of w.extra||[]){const s=wishImg.get(k);if(s)out.push({key:k,src:s})}
+  return out;
+}
+/* Fiktiver Verlauf: Kontostand mit Kauf (am heutigen Tag) gegenüber ohne Kauf */
+function buySeries(w){
+  const date=defaultBuyDate(),m=date.slice(0,7),day=+date.slice(8);
+  const x={id:'__kauf',month:m,day,desc:w.name,amount:-w.price,cat:'Sonstiges',ord:placeOrd(m,day)};
+  const R=compute(false,x),k=R.pts.findIndex(p=>p.m>=TODAY_M),s0=k>0?k-1:0;
+  const P=R.pts.slice(s0),base=C.pts.slice(s0),PB=[];let j=0,mark=-1;
+  P.forEach((p,i)=>{if(p.b&&p.b.id==='__kauf'){mark=i;PB.push({...(PB[i-1]||base[0]),label:'(ohne Kauf)'})}else PB.push(base[j++]||PB[i-1])});
+  return {P,PB,markIdx:mark,baseLabel:'ohne Kauf',newLabel:'mit Kauf',date};
+}
 function wishDetail(id){
-  const w=S.wish.find(x=>x.id===id);if(!w)return;const img=wishImg.get(id);
-  let ver='';
+  const w=S.wish.find(x=>x.id===id);if(!w)return;const imgs=wishImgList(w);
+  let ver='',chart='';
   if(w.price>0){const a=assess({name:w.name,price:w.price,date:defaultBuyDate(),cat:'Sonstiges'});
-    if(a&&!a.err){const v=verdictText(a);ver=`<div class="verdict ${a.level}" style="padding:12px;gap:6px"><div class="vh"><span class="badge">${{green:'Empfehlung',yellow:'Mit Vorsicht',orange:'Warten',red:'Abraten'}[a.level]}</span><h3 style="font-size:16px">${esc(v.head)}</h3></div><p class="sub" style="color:inherit;margin:0">${esc(v.t)}</p></div>`}}
-  openSheet(w.name,`<div class="stack wdetail">${img?`<img src="${img}" alt="">`:''}
+    if(a&&!a.err){const v=verdictText(a);ver=`<div class="verdict ${a.level}" style="padding:12px;gap:6px"><div class="vh"><span class="badge">${{green:'Empfehlung',yellow:'Mit Vorsicht',orange:'Warten',red:'Abraten'}[a.level]}</span><h3 style="font-size:16px">${esc(v.head)}</h3></div><p class="sub" style="color:inherit;margin:0">${esc(v.t)}</p></div>`;
+      chart=`<div><div class="label" style="margin-bottom:4px">Dein Kontostand, wenn du heute kaufst</div><div class="chart" id="buyChart" style="height:200px"></div><div class="legend"></div>
+        <p class="sub" style="margin:4px 0 0">Fiktiv: So würde sich dein geplanter Kontostand verändern. Tipp in die Grafik für Details.</p></div>`}}
+  const gallery=imgs.length?`<div class="gal"><div class="gal-track" id="galTrack">${imgs.map(im=>`<div class="gal-item"><img src="${esc(im.src)}" alt="" referrerpolicy="no-referrer">
+      ${im.main?'':`<button type="button" class="gal-del" data-act="wishImgDel" data-id="${id}" data-k="${esc(im.key)}" aria-label="Bild löschen">✕</button>`}</div>`).join('')}</div>
+    ${imgs.length>1?`<div class="gal-dots" id="galDots">${imgs.map((_,i)=>`<span class="${i?'':'on'}"></span>`).join('')}</div>`:''}</div>`:'';
+  openSheet(w.name,`<div class="stack wdetail">${gallery}
+    <button class="btn" type="button" data-act="wishImgAdd" data-id="${id}">+ ${imgs.length?'Weitere Bilder':'Bilder'} hinzufügen</button>
     <div><div class="kv"><span>Preis</span><b>${w.price>0?eur(cents(w.price)):'–'}</b></div>
      <div class="kv"><span>Kategorie</span><b>${esc(w.cat)}</b></div>
      ${w.shop?`<div class="kv"><span>Shop</span><b>${esc(w.shop)}</b></div>`:''}</div>
     ${w.note?`<p class="sub" style="margin:0">${esc(w.note)}</p>`:''}
     ${w.group&&groupItems(w.group).length>1?`<button class="btn tonal" type="button" data-act="wishCompare" data-g="${esc(w.group)}">Teil der Auswahl „${esc(w.group)}“ – mit ${groupItems(w.group).length-1} anderen vergleichen</button>`:''}
     ${safeUrl(w.link)?`<a class="btn" href="${esc(safeUrl(w.link))}" target="_blank" rel="noopener">Zum Produkt im Shop ↗</a>`:''}
-    ${ver}</div>`,
+    ${ver}${chart}</div>`,
    `<button class="btn" type="button" data-act="wishEdit" data-id="${id}">Bearbeiten</button><span class="sp"></span><button class="btn primary" type="button" data-act="wishBuy" data-id="${id}">Gekauft – als Buchung eintragen</button>`,()=>true);
+  const tr=$('#galTrack'),dots=$('#galDots');
+  if(tr&&dots)tr.onscroll=()=>{const i=Math.round(tr.scrollLeft/tr.clientWidth);dots.querySelectorAll('span').forEach((d,j)=>d.classList.toggle('on',j===i))};
+  if(chart){const el=$('#buyChart'),s=buySeries(w);el.__custom=s;drawChartIn(el,s);if(!el.querySelector('svg'))setTimeout(()=>drawChartIn(el,s),60)}
+}
+/* Weitere Bilder: auf max. 900 px verkleinert, in IndexedDB gespeichert */
+async function addWishImages(id,files){
+  const w=S.wish.find(x=>x.id===id);if(!w)return;
+  let added=0;
+  for(const picked of files){
+    try{const buf=await picked.arrayBuffer(),file=new File([buf],picked.name||'bild',{type:/^image\//.test(picked.type)?picked.type:sniffType(buf)});
+      if(!/^image\//.test(file.type)||/heic|heif/.test(file.type))continue;
+      const bmp=await decodeImage(file),s=Math.min(1,900/Math.max(imgW(bmp),imgH(bmp))),c=document.createElement('canvas');
+      c.width=Math.round(imgW(bmp)*s);c.height=Math.round(imgH(bmp)*s);const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(bmp,0,0,c.width,c.height);
+      const u=c.toDataURL('image/jpeg',.8),hasMain=wishImg.has(id)||w.imgUrl,key=hasMain?id+'#'+uid():id;
+      wishImg.set(key,u);await IDB.put(key,u);
+      if(key!==id){w.extra=w.extra||[];w.extra.push(key)}
+      added++;
+    }catch(e){}
+  }
+  if(!added){snack('Die Bilder konnten nicht gelesen werden.');return}
+  commit(()=>{},added===1?'Bild hinzugefügt':`${added} Bilder hinzugefügt`);
+  wishDetail(id);
 }
 /* Preisvergleich einer Auswahl-Gruppe */
+/* Gruppenfenster: alle Produkte untereinander, gewünschte Anzahl, Preisvergleich */
 function wishCompare(name){
-  const items=groupItems(name).sort((a,b)=>(a.price>0?a.price:1e9)-(b.price>0?b.price:1e9));if(!items.length)return;
+  const items=groupItems(name);if(!items.length)return;
+  const g=items[0].group,want=groupWant(g);
   const pr=items.filter(w=>w.price>0).map(w=>w.price),min=pr.length?Math.min(...pr):0,max=pr.length?Math.max(...pr):0,avg=pr.length?pr.reduce((s,x)=>s+x,0)/pr.length:0;
-  openSheet('Vergleich: '+items[0].group,`<div class="stack">
-    <div>${items.map(w=>{const img=wishImg.get(w.id),lv=wishLevel(w),d=w.price>0&&min?w.price-min:0;
-      return `<button type="button" class="cmp-r" data-act="wishOpen" data-id="${w.id}">${img?`<img src="${img}" alt="">`:'<span class="ph"></span>'}
-        <span style="min-width:0"><span class="wname" style="display:-webkit-box">${esc(w.name)}</span><span class="wcat" style="display:block">${esc(w.shop||w.cat)}${lv?' · heute '+LEVEL_TXT[lv]:''}</span>
-         <span class="cmp-bar"><span class="${w.price===min?'min':''}" style="width:${max?Math.max(4,w.price/max*100):0}%"></span></span></span>
-        <span style="text-align:right"><b class="wprice" style="font-size:16px">${w.price>0?eur(cents(w.price)):'–'}</b><span style="display:block;font-size:12px">${w.price>0&&w.price===min?'<span class="best">günstigste</span>':d>0?`<span class="neg">+${eur(cents(d))}</span>`:''}</span></span></button>`}).join('')}</div>
-    ${pr.length>1?`<div><div class="kv"><span>Günstigste</span><b class="pos">${eur(cents(min))}</b></div>
-     <div class="kv"><span>Teuerste</span><b>${eur(cents(max))}</b></div>
-     <div class="kv"><span>Unterschied</span><b>${eur(cents(max-min))} (${Math.round((max-min)/max*100)} %)</b></div>
-     <div class="kv"><span>Durchschnitt – zählt in der Summe</span><b>${eur(cents(avg))}</b></div></div>`:''}
-    <p class="sub" style="margin:0">Tipp auf ein Produkt, um Details zu sehen oder es zu kaufen. Beim Kauf kannst du die anderen gleich von der Liste nehmen.</p></div>`,
-   `<button class="btn" type="button" data-act="wishAddTo" data-g="${esc(items[0].group)}">+ Weiteres Produkt</button><span class="sp"></span><button class="btn primary" value="save">Fertig</button>`,()=>true);
+  const cheapest=pr.slice().sort((a,b)=>a-b).slice(0,want).reduce((s,x)=>s+x,0);
+  openSheet(g,`<div class="stack">
+    <div class="card" style="box-shadow:none;background:var(--surface-2);padding:12px">
+     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px"><span><b>Wie viele davon willst du?</b><span class="sub" style="display:block">von ${items.length} Produkten</span></span>
+      <span class="stepper"><button type="button" data-act="wishWant" data-g="${esc(g)}" data-d="-1" aria-label="Weniger" ${want<=1?'disabled':''}>−</button><b>${want}</b><button type="button" data-act="wishWant" data-g="${esc(g)}" data-d="1" aria-label="Mehr" ${want>=items.length?'disabled':''}>+</button></span></div>
+     <div class="kv" style="margin-top:8px"><span>Zählt in der Summe (Ø × ${want})</span><b>${eur(cents(avg*want))}</b></div>
+     ${pr.length>1?`<div class="kv"><span>Günstigste ${want>1?want+' zusammen':'Variante'}</span><b class="pos">${eur(cents(cheapest))}</b></div>
+     <div class="kv"><span>Preisspanne</span><b>${eur(cents(min))} – ${eur(cents(max))} (${Math.round((max-min)/max*100)} %)</b></div>`:''}</div>
+    <div>${items.map((w,i)=>{const img=wishImg.get(w.id)||w.imgUrl,lv=wishLevel(w),d=w.price>0&&min?w.price-min:0;
+      return `<button type="button" class="gitem" data-act="wishOpen" data-id="${w.id}">${img?`<img src="${esc(img)}" alt="" referrerpolicy="no-referrer">`:'<span class="ph"></span>'}
+        <span style="min-width:0;display:flex;flex-direction:column;gap:3px"><span class="wname">${i+1}. ${esc(w.name)}</span>
+         <span><b class="wprice" style="font-size:17px">${w.price>0?eur(cents(w.price)):'–'}</b> ${w.price>0&&w.price===min&&pr.length>1?'<span class="best">günstigste</span>':d>0?`<span class="neg" style="font-size:12px">+${eur(cents(d))}</span>`:''}</span>
+         <span class="cmp-bar"><span class="${w.price===min?'min':''}" style="width:${max?Math.max(4,w.price/max*100):0}%"></span></span>
+         <span class="wcat">${esc(w.shop||w.cat)}${lv?' · heute '+LEVEL_TXT[lv]:''}${w.note?' · '+esc(w.note):''}</span></span></button>`}).join('')}</div>
+    <p class="sub" style="margin:0">Tipp auf ein Produkt für Details oder zum Kaufen. Die Reihenfolge änderst du in der Liste, indem du ein Produkt am Griff ⠿ ziehst.</p></div>`,
+   `<button class="btn" type="button" data-act="wishAddTo" data-g="${esc(g)}">+ Weiteres Produkt</button><span class="sp"></span><button class="btn primary" value="save">Fertig</button>`,()=>true);
 }
 function wishBuySheet(id){
   const w=S.wish.find(x=>x.id===id);if(!w)return;
@@ -2259,18 +2355,21 @@ function wishBuySheet(id){
     <label class="field"><span>Kategorie der Buchung</span><select id="bCat" name="cat">${EXP_CATS.map(c=>`<option ${c===bc?'selected':''}>${esc(c)}</option>`).join('')}</select></label>
     <label class="check"><input type="checkbox" id="bDone" name="done" checked>Schon bezahlt (abhaken)</label>
     <label class="check"><input type="checkbox" id="bRemove" name="remove" checked>Von der Einkaufsliste entfernen</label>
-    ${w.group&&groupItems(w.group).length>1?`<label class="check"><input type="checkbox" id="bRemoveGroup" name="removeGroup" checked>Die ${groupItems(w.group).length-1} anderen aus „${esc(w.group)}“ auch entfernen (du hast dich entschieden)</label>`:''}
+    ${w.group&&groupItems(w.group).length>1?(groupWant(w.group)>1
+      ?`<label class="check"><input type="checkbox" id="bRemoveGroup" name="removeGroup">Die ${groupItems(w.group).length-1} anderen aus „${esc(w.group)}“ auch entfernen</label><p class="sub" style="margin:-6px 0 0">Du willst ${groupWant(w.group)} aus dieser Gruppe – danach bleiben noch ${groupWant(w.group)-1} offen.</p>`
+      :`<label class="check"><input type="checkbox" id="bRemoveGroup" name="removeGroup" checked>Die ${groupItems(w.group).length-1} anderen aus „${esc(w.group)}“ auch entfernen (du hast dich entschieden)</label>`):''}
     <div class="msg" role="alert"></div></div>`,
    `<span class="sp"></span><button class="btn primary" value="save">Eintragen</button>`,
    ()=>{
     const f=form.elements,n=parseNum(f.amt.value),date=f.date.value;
     if(isNaN(n)||n<=0)return showErr('Bitte einen gültigen Betrag eingeben.');
     if(!date||date<S.startDate)return showErr('Bitte ein Datum innerhalb deiner Planung wählen.');
-    const m=date.slice(0,7),day=+date.slice(8),done=f.done.checked,rm=f.remove.checked,cat=f.cat.value,rmG=!!(f.removeGroup&&f.removeGroup.checked),gk=groupKey(w.group);
+    const m=date.slice(0,7),day=+date.slice(8),done=f.done.checked,rm=f.remove.checked,cat=f.cat.value,rmG=!!(f.removeGroup&&f.removeGroup.checked),gk=groupKey(w.group),want=w.group?groupWant(w.group):1;
     thumbFromDataURL(wishImg.get(id)).then(th=>{
       commit(()=>{if(m>S.lastMonth)S.lastMonth=m;
         const b={id:uid(),month:m,day,desc:w.name,amount:-n,cat,done,src:'wish',ord:placeOrd(m,day)};if(th)b.thumb=th;
         S.bookings.push(b);
+        if(gk&&want>1&&!rmG)setGroupWant(w.group,want-1);  // ein Produkt der Gruppe ist gekauft
         S.wish=S.wish.filter(x=>!(x.id===id?rm:(rmG&&gk&&groupKey(x.group)===gk)));view.month=m},`„${w.name}“ als Ausgabe eingetragen`);
       setTab('buchungen');
     });
@@ -2300,8 +2399,142 @@ function wishCatsSheet(){
   $('#wcAdd').onclick=()=>{const i=form.querySelectorAll('#wcList .catrow').length;$('#wcList').insertAdjacentHTML('beforeend',row('',i));const el=$('#wcList').lastElementChild;el.dataset.orig='';wire(el);el.querySelector('input').focus()};
 }
 $('#wishFile').addEventListener('change',e=>{const f=e.target.files[0];if(f)handleWishImage(f,view.wishEditId).finally(()=>{e.target.value='';view.wishEditId=null})});
+
+/* „+ Produkt“: Screenshot, Link oder von Hand */
+function wishAddChooser(){
+  openSheet('Produkt hinzufügen',`<div class="stack">
+    <button class="btn primary full" type="button" data-act="wishShot">Screenshot auswählen</button>
+    <button class="btn full" type="button" data-act="wishLink">Link zum Produkt einfügen</button>
+    <button class="btn full" type="button" data-act="wishManual">Von Hand eintragen</button>
+    <p class="sub" style="margin:0">Tipp: In der Shop-App oder in Chrome auf „Teilen“ tippen und „Finanzplaner“ wählen – dann landet der Link direkt hier (nur bei installierter App).</p></div>`,'',()=>true);
+}
+
+/* ---------- Produkt per Weblink importieren ----------
+   Browser dürfen fremde Seiten nicht direkt lesen. Deshalb wird der Link über zwei öffentliche Dienste ausgelesen:
+   Jina Reader (Seitentext inkl. Preis, wenn der Shop es zulässt) und Microlink (Name und Produktbild, wenige Abrufe pro Tag frei). */
+const extractUrl=s=>{const m=String(s||'').match(/https?:\/\/[^\s<>"']+/i);return m?m[0].replace(/[).,;]+$/,''):''};
+const SHOP_NAMES={amazon:'Amazon',zalando:'Zalando',otto:'Otto',douglas:'Douglas',mediamarkt:'MediaMarkt',saturn:'Saturn',ebay:'eBay',ikea:'IKEA',aboutyou:'About You',hm:'H&M',nike:'Nike',adidas:'Adidas',apple:'Apple',decathlon:'Decathlon',thalia:'Thalia',galaxus:'Galaxus',shein:'Shein',temu:'Temu',zara:'Zara',snipes:'Snipes',notino:'Notino',flaconi:'Flaconi',dm:'dm',rossmann:'Rossmann',tchibo:'Tchibo',kleinanzeigen:'Kleinanzeigen',idealo:'idealo'};
+function shopFromUrl(u){try{let h=new URL(u).hostname.replace(/^www\.|^m\./,'');if(/amzn\./.test(h))return 'Amazon';const base=h.split('.').slice(-2,-1)[0]||h;return SHOP_NAMES[base.replace(/-/g,'')]||base.charAt(0).toUpperCase()+base.slice(1)}catch(e){return ''}}
+const cleanTitle=t=>clean(String(t||'').replace(/&amp;/g,'&').replace(/&quot;/g,'"').replace(/&#39;|&#x27;/g,"'")
+  .replace(/\s*[|–—-]\s*(online kaufen|jetzt kaufen|kaufen|bestellen).*$/i,'').replace(/\s*[:|–—-]\s*(amazon|zalando|otto|douglas|about you|mediamarkt|saturn|ebay|ikea)\b[^]*$/i,'').replace(/^(amazon\.de|zalando)\s*[:|-]\s*/i,'')).slice(0,90);
+/* Strukturierte Produktdaten (wie sie auch Google nutzt): JSON-LD „Product“ und og:/product:-Meta-Angaben */
+function parseProductHtml(html){
+  const meta=n=>{const m=html.match(new RegExp('<meta[^>]+(?:property|name|itemprop)=["\']'+n+'["\'][^>]*content=["\']([^"\']*)','i'))||html.match(new RegExp('<meta[^>]+content=["\']([^"\']*)["\'][^>]*(?:property|name|itemprop)=["\']'+n+'["\']','i'));return m?m[1]:''};
+  const out={name:meta('og:title')||(html.match(/<title[^>]*>([^<]*)/i)||[])[1]||'',image:meta('og:image')||meta('og:image:secure_url'),
+    price:numAny(meta('product:price:amount')||meta('og:price:amount')||meta('price'))||null,text:meta('og:description')||meta('description')};
+  const find=o=>{if(!o||typeof o!=='object')return null;if(Array.isArray(o)){for(const x of o){const r=find(x);if(r)return r}return null}
+    const t=[].concat(o['@type']||[]);if(t.some(x=>/^(Product|ProductGroup)$/i.test(x)))return o;return find(o['@graph'])};
+  for(const m of html.matchAll(/<script[^>]+application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi)){
+    let p;try{p=find(JSON.parse(m[1].trim()))}catch(e){continue}if(!p)continue;
+    if(p.name)out.name=p.name;
+    const img=[].concat(p.image||[])[0];if(img)out.image=typeof img==='string'?img:(img.url||img.contentUrl||out.image);
+    const offers=[].concat(p.offers||(p.hasVariant&&[].concat(p.hasVariant).map(v=>v.offers))||[]).flat().filter(Boolean);
+    for(const o of offers){const v=numAny(o.price??o.lowPrice??(o.priceSpecification&&o.priceSpecification.price));if(v>0){out.price=v;break}}
+    out.text=[out.text,p.description,p.category,p.brand&&p.brand.name].filter(Boolean).join(' ');break;
+  }
+  return out;
+}
+const withTimeout=(p,ms)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('Zeitüberschreitung')),ms))]);
+async function fetchImageFile(u){
+  for(const src of [u,'https://images.weserv.nl/?url='+encodeURIComponent(u)+'&w=700&output=jpg']){
+    try{const r=await withTimeout(fetch(src),12000);if(!r.ok)continue;const b=await r.blob();if(b.size<6000||!/^image\//.test(b.type||'image/'))continue;  // winzige Vorschaubilder überspringen
+      return new File([b],'produkt.jpg',{type:b.type||'image/jpeg'})}catch(e){}
+  }
+  return null;
+}
+async function fetchProduct(url,step){
+  const res={link:url,shop:shopFromUrl(url)};
+  const blocked=t=>/access denied|tut uns leid|captcha|robot check|are you a human|403 forbidden|enable javascript|zugriff verweigert/i.test(String(t).slice(0,3000));
+  // 1) Jina Reader, nur Kopfbereich + Produktdaten (klein, ca. 100 KB): Name, Originalbild, Preis
+  step('Seite wird gelesen …');
+  let pageOk=false;
+  try{const r=await withTimeout(fetch('https://r.jina.ai/'+url,{headers:{'X-Return-Format':'html','X-Target-Selector':'head, script[type="application/ld+json"]'}}),20000),t=await r.text();
+    if(r.ok&&t.length>200&&!blocked(t)){pageOk=true;const p=parseProductHtml(t);
+      if(p.name)res.name=cleanTitle(p.name);if(p.image)res.image=new URL(p.image,url).href;if(p.price>0)res.price=Math.round(p.price*100)/100;res.text=p.text||''}}catch(e){}
+  // Nur eine allgemeine Shop-Seite bekommen (z. B. „Amazon.de“)? Dann taugen Name und Bild nichts
+  if(res.name&&(res.name.length<8||groupKey(res.name).replace(/\.(de|com)$/,'')===groupKey(res.shop)||/^(amazon|startseite|home|willkommen|page not found|404)/i.test(res.name))){res.name='';res.image='';res.price=0;pageOk=false}
+  // 2) Kein Preis in den Produktdaten: im sichtbaren Seitentext suchen
+  if(pageOk&&!res.price){
+    step('Preis wird gesucht …');
+    try{const r=await withTimeout(fetch('https://r.jina.ai/'+url),20000),t=await r.text();
+      if(r.ok&&!blocked(t)){const body=(t.split('Markdown Content:')[1]||t).slice(0,30000);
+        const plain=body.replace(/!\[[^\]]*\]\([^)]*\)/g,' ').replace(/\[([^\]]*)\]\([^)]*\)/g,'$1');
+        const a=analyse({text:plain.split('\n').slice(0,400).join('\n'),lines:null});if(a.price)res.price=a.price;
+        res.text=(res.text+' '+plain.slice(0,3000)).trim();
+        if(!res.image){const im=[...body.matchAll(/!\[[^\]]*\]\((https?:[^)\s]+)\)/g)].map(m=>m[1]).find(u=>!/logo|icon|sprite|\.svg|pixel|track|badge|banner|payment|flag/i.test(u));if(im)res.image=im}}}catch(e){}
+  }
+  // 2) Microlink: zuverlässig für Name und Produktbild (auch bei großen Shops)
+  if(!res.name||!res.image){
+    step('Produktbild wird gesucht …');
+    try{const r=await withTimeout(fetch('https://api.microlink.io/?url='+encodeURIComponent(url)),18000),j=await r.json();
+      if(j.status==='success'&&j.data){if(j.data.title&&!/^(product gallery|amazon\.de|page not found|404)/i.test(j.data.title))res.name=res.name||cleanTitle(j.data.title);
+        if(j.data.image&&j.data.image.url)res.image=res.image||j.data.image.url;if(j.data.publisher&&!res.shop)res.shop=j.data.publisher;
+        if(!res.text&&j.data.description)res.text=j.data.description}
+      else if(r.status===429)res.limit=true}catch(e){}
+  }
+  if(res.image){step('Bild wird geladen …');res.file=await fetchImageFile(res.image)}
+  res.cat=guessWishCat(res.name||'',res.text||'');
+  return res;
+}
+function linkSheet(prefillUrl,title){
+  openSheet('Produkt per Link',`<div class="stack">
+    <label class="field"><span>Link zum Produkt</span><input id="lUrl" name="url" inputmode="url" value="${esc(prefillUrl||'')}" placeholder="https://www.zalando.de/…" autocomplete="off"></label>
+    <div id="lStatus" class="sub" aria-live="polite"></div>
+    <p class="sub" style="margin:0">Name und Produktbild werden automatisch geholt. Den Preis lesen viele große Shops (z. B. Amazon) nicht automatisch aus – dann trägst du ihn kurz selbst ein. Zum Auslesen wird der Link an die Dienste Jina Reader und Microlink geschickt.</p>
+    <div class="msg" role="alert"></div></div>`,
+   `<span class="sp"></span><button class="btn primary" value="save" id="lGo">Produkt laden</button>`,
+   ()=>{
+    const url=extractUrl(form.elements.url.value);if(!url)return showErr('Bitte einen gültigen Link einfügen (beginnt mit https://).');
+    const btn=$('#lGo');btn.disabled=true;
+    const step=t=>{const e=$('#lStatus');if(e)e.innerHTML=`<span style="display:flex;gap:10px;align-items:center"><span class="spinner"></span>${esc(t)}</span>`};
+    fetchProduct(url,step).then(p=>{
+      if(!sheet.open)return;
+      if(!p.name&&!p.image){btn.disabled=false;$('#lStatus').textContent=p.limit?'Für heute sind die freien Abrufe aufgebraucht. Mach am besten einen Screenshot vom Produkt.':'Diese Seite lässt sich nicht automatisch lesen (der Shop blockiert das). Mach am besten einen Screenshot vom Produkt.';return}
+      const st={prefill:{name:p.name||(title?cleanTitle(title):''),price:p.price||0,cat:p.cat,shop:p.shop,link:url},guess:p.cat,group:view.wishPresetGroup||''};
+      view.wishPresetGroup='';
+      if(p.file){st.file=p.file;st.url=URL.createObjectURL(p.file);st.crop={x:0,y:0,w:1,h:1}}else if(p.image)st.imgUrl=p.image;
+      st.status=p.price?'Aus dem Link übernommen – prüfe kurz die Angaben.':'Name und Bild übernommen. <b>Den Preis bitte selbst eintragen</b> – der Shop gibt ihn nicht automatisch heraus.';
+      sheet.close();wishSheet(null,st);
+    }).catch(()=>{btn.disabled=false;$('#lStatus').textContent='Das hat nicht geklappt. Prüfe die Internetverbindung oder mach einen Screenshot.'});
+    return false;
+   });
+  if(!prefillUrl)setTimeout(()=>form.elements.url.focus(),50);
+}
+
+/* ---------- Drag & Drop: Reihenfolge der Produkte in einer Gruppe ---------- */
+document.addEventListener('pointerdown',e=>{
+  const grip=e.target.closest('[data-drag]');if(!grip)return;
+  e.preventDefault();e.stopPropagation();
+  const card=grip.closest('.wmini'),row=card&&card.parentElement;if(!row)return;
+  try{grip.setPointerCapture(e.pointerId)}catch(_){}
+  card.classList.add('dragging');let moved=false,scrollT=null;
+  const move=ev=>{
+    moved=true;const x=ev.clientX,rr=row.getBoundingClientRect();
+    let before=null;for(const s of row.querySelectorAll('.wmini:not(.dragging)')){const r=s.getBoundingClientRect();if(x<r.left+r.width/2){before=s;break}}
+    if(before!==card.nextElementSibling)row.insertBefore(card,before);
+    clearInterval(scrollT);scrollT=null;
+    if(x<rr.left+36)scrollT=setInterval(()=>row.scrollLeft-=10,16);else if(x>rr.right-36)scrollT=setInterval(()=>row.scrollLeft+=10,16);
+  };
+  const end=()=>{
+    grip.removeEventListener('pointermove',move);clearInterval(scrollT);card.classList.remove('dragging');
+    if(!moved)return;
+    const ids=[...row.querySelectorAll('.wmini')].map(c=>c.dataset.id);
+    commit(()=>{ids.forEach((id,i)=>{const w=S.wish.find(x=>x.id===id);if(w)w.gorder=i})},'Reihenfolge gespeichert');
+  };
+  grip.addEventListener('pointermove',move);
+  grip.addEventListener('pointerup',end,{once:true});grip.addEventListener('pointercancel',end,{once:true});
+},{capture:true});
+
+/* Links, die aus anderen Apps geteilt wurden („Teilen“ → Finanzplaner) */
+function handleShareTarget(){
+  const sp=new URLSearchParams(location.search),u=extractUrl(sp.get('url')||sp.get('text')||'');
+  if(!u)return;
+  history.replaceState(null,'',location.pathname);
+  setTab('einkauf');linkSheet(u,sp.get('title')||'');setTimeout(()=>form.requestSubmit($('#lGo')),200);
+}
+$('#wishExtraFile').addEventListener('change',e=>{const fs=[...e.target.files],id=view.wishExtraFor;if(fs.length&&id)addWishImages(id,fs).finally(()=>{e.target.value=''});else e.target.value=''});
 // Gespeicherte Produktbilder laden; Bilder gelöschter Produkte beim Start aufräumen
-IDB.all().then(o=>{const ids=new Set((S.wish||[]).map(w=>w.id));
+IDB.all().then(o=>{const ids=new Set((S.wish||[]).flatMap(w=>[w.id,...(w.extra||[])]));
   for(const [k,v] of Object.entries(o)){if(ids.has(k))wishImg.set(k,v);else IDB.del(k).catch(()=>{})}
   renderWish()}).catch(()=>{});
 
@@ -2326,7 +2559,7 @@ function welcomeSheet(){
    ()=>{const b=parseNum(form.elements.wb.value);if(isNaN(b))return showErr('Bitte deinen aktuellen Kontostand eingeben, z. B. 1.234,56.');
      commit(()=>{S=blank(form.elements.wd.value||TODAY,b)},'Plan angelegt');view.tab='buchungen';render()});
 }
-if(firstRun)welcomeSheet();
+if(firstRun)welcomeSheet();else handleShareTarget();
 
 /* Installierbar machen: Offline-Speicher, dauerhafter Speicher, Installieren-Knopf */
 var installEvt=null;
