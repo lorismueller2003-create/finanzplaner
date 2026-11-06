@@ -161,9 +161,25 @@ main{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px
 
 .nav{position:fixed;left:0;right:0;bottom:0;z-index:25;background:var(--surface);border-top:1px solid var(--line);
   padding-left:max(8px,env(safe-area-inset-left,0px));padding-right:max(8px,env(safe-area-inset-right,0px));padding-bottom:env(safe-area-inset-bottom,0px)}
-.nav .in{max-width:640px;margin:0 auto;display:grid;grid-template-columns:repeat(5,1fr);height:var(--nav-h)}
-.nav button{border:0;background:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11.5px;color:var(--ink-2);padding:0}
-.nav button .ic{width:56px;height:30px;border-radius:15px;display:grid;place-items:center;transition:background .15s}
+.nav .in{max-width:640px;margin:0 auto;display:grid;grid-template-columns:repeat(6,1fr);height:var(--nav-h)}
+.nav button{border:0;background:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:10.5px;line-height:1.1;text-align:center;hyphens:manual;color:var(--ink-2);padding:0 1px;min-width:0}
+.nav button .ic{width:46px;height:28px;border-radius:14px;display:grid;place-items:center;transition:background .15s;flex:none}
+/* Einkaufsliste */
+.wgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.wcard{border:0;padding:0;background:var(--surface);border-radius:16px;box-shadow:var(--shadow);overflow:hidden;text-align:left;cursor:pointer;display:flex;flex-direction:column;min-width:0;color:inherit}
+.wimg{position:relative;aspect-ratio:1;background:var(--surface-2);display:grid;place-items:center;color:var(--muted);font-size:12px}
+.wimg img{width:100%;height:100%;object-fit:cover;display:block}
+.wdot{position:absolute;top:8px;right:8px;width:12px;height:12px;border-radius:50%;border:2px solid var(--surface)}
+.wdot.green{background:var(--pos)}.wdot.yellow,.wdot.orange{background:var(--warn)}.wdot.red{background:var(--crit)}
+.wbody{padding:8px 10px 10px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.wname{font-weight:600;font-size:13.5px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.wprice{font-family:var(--display);font-weight:700;font-size:17px}
+.wcat{font-size:11.5px;color:var(--muted)}
+.wgroup{font-size:12px;font-weight:700;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em;margin:6px 4px -2px;display:flex;justify-content:space-between}
+.crop{position:relative;touch-action:none;user-select:none;border-radius:12px;overflow:hidden;background:var(--surface-2);max-height:56vh;display:flex;justify-content:center}
+.crop img{display:block;max-width:100%;max-height:56vh;pointer-events:none}
+.crop .box{position:absolute;border:2px solid var(--accent);box-shadow:0 0 0 9999px rgba(0,0,0,.45);border-radius:6px;pointer-events:none}
+.wdetail img{width:100%;max-height:46vh;object-fit:contain;border-radius:14px;background:var(--surface-2)}
 .nav button svg{width:22px;height:22px}
 .nav button[aria-current="page"]{color:var(--ink);font-weight:700}
 .nav button[aria-current="page"] .ic{background:var(--accent-soft);color:var(--accent)}
@@ -340,7 +356,9 @@ body{margin:0}img{max-width:100%}[hidden]{display:none!important}
   </section>
   <section class="panel" id="p-szen" aria-label="Szenarien" hidden></section>
   <section class="panel" id="p-ausw" aria-label="Auswertung" hidden></section>
+  <section class="panel" id="p-wish" aria-label="Einkaufsliste" hidden></section>
 </main>
+<input type="file" id="wishFile" accept="image/*" class="sr">
 
 <button class="fab" id="fab" data-act="add" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Buchung</button>
 
@@ -349,6 +367,7 @@ body{margin:0}img{max-width:100%}[hidden]{display:none!important}
   <button data-tab="buchungen"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg></span>Buchungen</button>
   <button data-tab="scan"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><path d="M9 9h.01M10 15l5-6"/><path d="M15 15h.01"/></svg></span>Prüfen</button>
   <button data-tab="szen"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg></span>Ziele</button>
+  <button data-tab="einkauf"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7h12l-1.2 12.1a1 1 0 0 1-1 .9H8.2a1 1 0 0 1-1-.9z"/><path d="M9 7V6a3 3 0 0 1 6 0v1"/></svg></span>Einkaufs&shy;liste</button>
   <button data-tab="ausw"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 20V10M12 20V4M19 20v-7"/></svg></span>Auswertung</button>
 </div></nav>
 
@@ -360,6 +379,18 @@ body{margin:0}img{max-width:100%}[hidden]{display:none!important}
 <script>
 'use strict';
 const DEFAULT_CATS=['Einkommen','Lebensmittel','Essen & Freizeit','Kleidung','Mobilität','Auto & Versicherung','Abos','Geschenke','Sparen','Sonstiges'];
+/* Einkaufsliste: eigene Produkt-Kategorien mit Stichwörtern für die automatische Zuordnung */
+const WISH_KW={
+  'Parfüm':['parfum','parfüm','eau de','edp','edt','toilette','cologne','duft','fragrance','perfume','aftershave','body mist'],
+  'Kleidung':['schuh','sneaker','stiefel','boots','jacke','mantel','hose','jeans','t-shirt','shirt','pullover','pulli','hoodie','sweatshirt','kleid','mütze','schal','socken','bluse','hemd','weste','zalando','about you','snipes'],
+  'Elektronik':['kopfhörer','headphone','earbuds','airpods','smartphone','handy','iphone','galaxy','laptop','notebook','macbook','tablet','ipad','monitor','fernseher','konsole','playstation','ps5','xbox','nintendo','kamera','smartwatch','lautsprecher','speaker','ladegerät','powerbank','bluetooth','ssd','grafikkarte','tastatur','gaming','mediamarkt','saturn'],
+  'Beauty & Pflege':['creme','shampoo','make-up','makeup','lippenstift','mascara','serum','rasierer','zahnbürste','lotion','nagellack','foundation','concealer','föhn','glätteisen','douglas','rossmann'],
+  'Schmuck & Accessoires':['uhr','armbanduhr','kette','ring','armband','ohrring','sonnenbrille','handtasche','tasche','rucksack','geldbörse','portemonnaie','gürtel','cap'],
+  'Haushalt & Wohnen':['küche','topf','pfanne','staubsauger','kaffeemaschine','wasserkocher','bettwäsche','handtuch','lampe','regal','möbel','deko','kissen','decke','teppich','ikea','vase','geschirr','mixer'],
+  'Freizeit & Sport':['fahrrad','fitness','hantel','yoga','zelt','camping','laufschuh','trikot','ticket','konzert','roman','taschenbuch','lego','puzzle','videospiel'],
+  'Geschenke':['geschenk','gutschein','geschenkset','geschenkbox'],
+};
+const WISH_CATS=[...Object.keys(WISH_KW),'Sonstiges'];
 /* Kategorien sind anpassbar: „Einkommen“ und „Sonstiges“ gibt es immer */
 let CATS=DEFAULT_CATS.slice(),EXP_CATS=CATS.slice(1);
 function syncCats(){
@@ -368,6 +399,9 @@ function syncCats(){
   if(!S.cats.includes('Sonstiges'))S.cats.push('Sonstiges');
   CATS=['Einkommen',...S.cats.filter(c=>c!=='Einkommen')];EXP_CATS=CATS.slice(1);
   S.budgets=S.budgets||{};S.goals=S.goals||[];S.learn=S.learn||{};
+  S.wish=S.wish||[];S.wishLearn=S.wishLearn||{};
+  if(!Array.isArray(S.wishCats)||!S.wishCats.length)S.wishCats=WISH_CATS.slice();
+  for(const w of S.wish)if(w.cat&&!S.wishCats.includes(w.cat))S.wishCats.push(w.cat);
 }
 const catOpts=sel=>CATS.map(c=>`<option ${c===sel?'selected':''}>${esc(c)}</option>`).join('');
 const KEY='finanzplaner-v1';
@@ -408,7 +442,8 @@ S.ui=S.ui||{from:'2026-11',to:'2027-01'}; S.vars=S.vars||[]; S.marks=S.marks||{}
 let undoStack=[];
 const view={tab:'start',month:null,auswMonth:null,flow:{buch:null,start:null},q:'',fType:'all',fCat:'',fStatus:'all',showFilter:false};
 try{const t=localStorage.getItem(KEY+':tab');if(t)view.tab=t}catch(e){}
-if(['start','buchungen','scan','szen','ausw'].includes(location.hash.slice(1)))view.tab=location.hash.slice(1);
+if(['start','buchungen','scan','szen','ausw','einkauf'].includes(location.hash.slice(1)))view.tab=location.hash.slice(1);
+try{view.wishSort=localStorage.getItem(KEY+':wishSort')||'cat'}catch(e){view.wishSort='cat'}
 
 const CLIENT=uid();
 const cloud={ref:null,writing:false,again:false,timer:null};
@@ -537,15 +572,17 @@ function render(skipSliders){
   syncCats();
   const sc=$('#sCat'),cur=sc.value;sc.innerHTML=EXP_CATS.map(c=>`<option ${c===cur?'selected':''}>${esc(c)}</option>`).join('');
   C=compute(false);CB=compute(true);
-  renderStart();renderBookings();if(!skipSliders)renderScen();else renderScenLive();renderAusw();renderScanVerdict();
+  renderStart();renderBookings();if(!skipSliders)renderScen();else renderScenLive();renderAusw();renderScanVerdict();renderWish();
   setTab(view.tab,true);
 }
 function setTab(t,quiet){
+  if(!['start','buchungen','scan','szen','ausw','einkauf'].includes(t))t='start';
   view.tab=t;
-  for(const [k,id] of [['start','p-start'],['buchungen','p-buchungen'],['scan','p-scan'],['szen','p-szen'],['ausw','p-ausw']])$('#'+id).hidden=k!==t;
+  for(const [k,id] of [['start','p-start'],['buchungen','p-buchungen'],['scan','p-scan'],['szen','p-szen'],['ausw','p-ausw'],['einkauf','p-wish']])$('#'+id).hidden=k!==t;
   document.querySelectorAll('.nav button').forEach(b=>b.setAttribute('aria-current',b.dataset.tab===t?'page':'false'));
-  $('#fab').hidden=t!=='buchungen';
-  $('#title').textContent={start:'Finanzplaner',buchungen:'Buchungen',scan:'Kauf prüfen',szen:'Ziele & Szenarien',ausw:'Auswertung'}[t];
+  const fab=$('#fab');fab.hidden=t!=='buchungen'&&t!=='einkauf';
+  fab.dataset.act=t==='einkauf'?'wishShot':'add';fab.lastChild.textContent=t==='einkauf'?'Produkt':'Buchung';
+  $('#title').textContent={start:'Finanzplaner',buchungen:'Buchungen',scan:'Kauf prüfen',szen:'Ziele & Szenarien',ausw:'Auswertung',einkauf:'Einkaufsliste'}[t];
   try{localStorage.setItem(KEY+':tab',t)}catch(e){}
   if(!quiet){window.scrollTo(0,0);requestAnimationFrame(()=>document.querySelectorAll('.panel:not([hidden]) .chart').forEach(drawChartIn))}
 }
@@ -597,7 +634,7 @@ function flowHTML(mo,type){
 function itemHTML(r){
   const b=r.b,isVar=b.calc&&b.calc.type==='var',isRef=b.calc&&b.calc.type==='refund';
   const cls=[b.done?(r.a>=0?'done-pos':'done-neg'):'',isVar?'road':''].join(' ');
-  const tags=(b.ruleId&&!isRef?'<span class="tag" title="Wiederkehrend">↻</span>':'')+(isVar?'<span class="tag road">Szenario</span>':'')+(isRef?'<span class="tag">berechnet</span>':'')+(b.src==='scan'?'<span class="tag">Screenshot</span>':'')+(b.src==='fix'?'<span class="tag">Korrektur</span>':'');
+  const tags=(b.ruleId&&!isRef?'<span class="tag" title="Wiederkehrend">↻</span>':'')+(isVar?'<span class="tag road">Szenario</span>':'')+(isRef?'<span class="tag">berechnet</span>':'')+(b.src==='scan'?'<span class="tag">Screenshot</span>':'')+(b.src==='fix'?'<span class="tag">Korrektur</span>':'')+(b.src==='wish'?'<span class="tag">Einkaufsliste</span>':'');
   return `<div class="item ${cls}">
     <button class="tick" type="button" data-act="done" data-id="${b.id}" aria-pressed="${!!b.done}" aria-label="${esc(b.desc)} erledigt"><span>✓</span></button>
     ${b.thumb?`<img class="thumb" src="${b.thumb}" alt="">`:''}
@@ -959,6 +996,7 @@ async function ocr(file,progress){
       if(analyse(d2).price)data={text:data.text+'\n'+d2.text,lines:(data.lines||[]).concat(d2.lines||[])}}
     finally{await ocrWorker.setParameters({tessedit_pageseg_mode:'3'})}
   }
+  if(canvas&&canvas.height){data.__w=canvas.width;data.__h=canvas.height}  // für den automatischen Bildausschnitt
   return data;
 }
 /* Graustufen, dunkle Screenshots invertieren, kleine Bilder vergrößern – das verbessert die Erkennung deutlich */
@@ -1293,12 +1331,20 @@ document.addEventListener('click',async e=>{
     case 'removeMonth':{const m=S.lastMonth;if(!await ask(`${mName(m)} mit allen Buchungen entfernen?`,'Entfernen',true))break;
       commit(()=>{S.bookings=S.bookings.filter(b=>b.month!==m);S.lastMonth=addM(m,-1);view.month=S.lastMonth},`${mName(m)} entfernt`);break}
     case 'rules':if(sheet.open)sheet.close();rulesSheet();break;
-    case 'export':saveFile('Finanzplaner-Sicherung-'+TODAY+'.json',JSON.stringify(S,null,1),'application/json');break;
+    case 'export':saveFile('Finanzplaner-Sicherung-'+TODAY+'.json',JSON.stringify({...S,wishImages:Object.fromEntries([...wishImg].filter(([k])=>S.wish.some(w=>w.id===k)))},null,1),'application/json');break;
     case 'import':$('#importFile').click();break;
     case 'csv':exportCSV();break;
     case 'reset':sheet.close();if(await ask('Alle Daten auf diesem Handy löschen und neu anfangen? Exportiere vorher eine Sicherung, wenn du sie behalten willst.','Alles löschen',true)){commit(()=>{S=blank(TODAY,0)});welcomeSheet()}break;
     case 'install':if(installEvt){installEvt.prompt();installEvt.userChoice.finally(()=>{installEvt=null;renderStart()})}break;
     case 'cats':if(sheet.open)sheet.close();catsSheet();break;
+    case 'wishShot':view.wishEditId=null;$('#wishFile').click();break;
+    case 'wishImgChange':view.wishEditId=id||null;$('#wishFile').click();break;
+    case 'wishManual':wishSheet(null,null);break;
+    case 'wishOpen':wishDetail(id);break;
+    case 'wishEdit':sheet.close();wishSheet(id,null);break;
+    case 'wishBuy':sheet.close();wishBuySheet(id);break;
+    case 'wishCat':view.wishCat=t.dataset.c||'';renderWish();break;
+    case 'wishCats':wishCatsSheet();break;
     case 'importData':if(sheet.open)sheet.close();importSheet();break;
     case 'notify':await toggleNotify();if(sheet.open){sheet.close();settingsSheet()}break;
     case 'goalAdd':goalSheet(null);break;
@@ -1324,6 +1370,7 @@ document.addEventListener('change',e=>{
   if(a==='ovFrom'){S.ui.from=t.value;save();renderAusw()}
   else if(a==='ovTo'){S.ui.to=t.value;save();renderAusw()}
   else if(a==='fType'||a==='fStatus'||a==='fCat'){view[a]=t.value;renderBookings()}
+  else if(a==='wishSort'){view.wishSort=t.value;try{localStorage.setItem(KEY+':wishSort',t.value)}catch(e){}renderWish()}
   else if(a==='varRange'){const v=S.vars.find(x=>x.id===t.dataset.id);undoStack.push(varDragStart||JSON.stringify(S));varDragStart=null;v.value=+t.value;save();render(true)}
 });
 let varDragStart=null;
@@ -1776,7 +1823,7 @@ function planImportSheet(p){
     <p class="sub" style="margin:0">Laufende Buchungen werden ab jetzt jeden Monat automatisch eingetragen. Der Import ersetzt deinen aktuellen Plan – Kategorien, Budgets und Sparziele bleiben erhalten.</p></div>`,
    `<span class="sp"></span><button class="btn primary" value="save">Plan übernehmen</button>`,
    ()=>{commit(()=>{
-      const keep={threshold:S.threshold,horizon:S.horizon||6,cats:S.cats,budgets:S.budgets,goals:S.goals,learn:S.learn};
+      const keep={threshold:S.threshold,horizon:S.horizon||6,cats:S.cats,budgets:S.budgets,goals:S.goals,learn:S.learn,wish:S.wish,wishCats:S.wishCats,wishLearn:S.wishLearn};
       const m=p.startDate.slice(0,7);
       S={...blank(p.startDate,p.startBalance),...keep,rules:p.rules,bookings:p.bookings,skipped:p.skipped,vars:p.vars,
         marks:p.startDone?{[m+':start']:true}:{},lastMonth:p.lastMonth,ui:{from:m,to:addM(m,2)}};
@@ -1910,7 +1957,7 @@ function tableImportSheet(sheets){
     let rules=[],skipped=[];
     if($('#mRecur').checked){({rules,skipped}=detectRules(bookings));bookings.forEach(b=>delete b.__d)}
     commit(()=>{
-      const keep={threshold:S.threshold,horizon:S.horizon||6,cats:[...(S.cats||DEFAULT_CATS),...newCats],budgets:S.budgets,goals:S.goals,learn:S.learn};
+      const keep={threshold:S.threshold,horizon:S.horizon||6,cats:[...(S.cats||DEFAULT_CATS),...newCats],budgets:S.budgets,goals:S.goals,learn:S.learn,wish:S.wish,wishCats:S.wishCats,wishLearn:S.wishLearn};
       const m=sd.slice(0,7),last=bookings.reduce((a,b)=>b.month>a?b.month:a,m);
       S={...blank(sd,bal),...keep,rules,bookings,skipped,lastMonth:last>addM(m,5)?last:addM(m,5),ui:{from:m,to:addM(m,2)}};
     },`${bookings.length} Buchungen importiert${rules.length?`, ${rules.length} laufende erkannt`:''}`);
@@ -1934,6 +1981,7 @@ async function importAny(picked){
   catch(e){snack('Die Datei konnte nicht gelesen werden. Wähle sie bitte noch einmal aus.');return}
   try{
     if(ext==='json'){const d=JSON.parse(await readText(file));if(!valid(d))throw new Error('Das ist keine Finanzplaner-Sicherung.');
+      if(d.wishImages){for(const [k,v] of Object.entries(d.wishImages)){wishImg.set(k,v);IDB.put(k,v).catch(()=>{})}delete d.wishImages}
       sheet.close();commit(()=>{S=d;S.ui=S.ui||{};S.vars=S.vars||[];S.marks=S.marks||{};S.skipped=S.skipped||[]},'Sicherung importiert');return}
     if(['xlsx','xls','xlsm','ods'].includes(ext)){
       snack('Datei wird gelesen …');if(!window.XLSX)await loadScript(LIBS.xlsx);
@@ -1965,6 +2013,224 @@ function importSheet(){
    `<span class="sp"></span><button class="btn primary" type="button" id="impPick">Datei auswählen</button>`,()=>true);
   $('#impPick').onclick=()=>$('#importFile').click();
 }
+
+/* ---------- Einkaufsliste: Produkte, die man überlegt zu kaufen (zählen nicht im Kontostand) ---------- */
+/* Produktbilder liegen in IndexedDB (zu groß für den normalen Speicher), im Speicher als id → Bild-URL */
+const IDB={db:null,
+  async open(){if(this.db)return this.db;this.db=await new Promise((res,rej)=>{const r=indexedDB.open('finanzplaner',1);r.onupgradeneeded=()=>r.result.createObjectStore('img');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});return this.db},
+  async run(mode,fn){const db=await this.open();return new Promise((res,rej)=>{const t=db.transaction('img',mode);fn(t.objectStore('img'));t.oncomplete=()=>res();t.onerror=()=>rej(t.error)})},
+  put(k,v){return this.run('readwrite',s=>s.put(v,k))},del(k){return this.run('readwrite',s=>s.delete(k))},
+  async all(){const db=await this.open();return new Promise((res,rej)=>{const out={},c=db.transaction('img').objectStore('img').openCursor();c.onsuccess=()=>{const cur=c.result;if(cur){out[cur.key]=cur.value;cur.continue()}else res(out)};c.onerror=()=>rej(c.error)})}};
+const wishImg=new Map();let wishSt=null;
+const safeUrl=u=>/^https?:\/\//i.test(String(u||'').trim())?String(u).trim():'';
+function guessWishCat(name,text){
+  const words=String(name).toLowerCase().split(/[^a-zäöüß0-9]+/).filter(w=>w.length>=4);
+  for(const w of words){const c=S.wishLearn[w];if(c&&S.wishCats.includes(c))return c}
+  let best='Sonstiges',bs=0;
+  for(const [c,kw] of Object.entries(WISH_KW)){if(!S.wishCats.includes(c))continue;let s=0;for(const k of kw){if(kwHit(name,k))s+=3;else if(kwHit(text,k))s+=1}if(s>bs){bs=s;best=c}}
+  return S.wishCats.includes(best)?best:(S.wishCats.includes('Sonstiges')?'Sonstiges':S.wishCats[0]);
+}
+/* Merkt sich Korrekturen: Wörter aus dem Produktnamen → gewählte Kategorie */
+function learnWishCat(name,cat){
+  String(name).toLowerCase().split(/[^a-zäöüß0-9]+/).filter(w=>w.length>=4&&!/^(herren|damen|kinder|unisex|größe|farbe|schwarz|weiß|blau|grau|neu|set|pack)$/.test(w)).slice(0,3).forEach(w=>S.wishLearn[w]=cat);
+}
+function wishLevel(w){
+  if(!(w.price>0))return '';
+  try{const a=assess({name:w.name,price:w.price,date:defaultBuyDate(),cat:'Sonstiges'});return a&&!a.err?a.level:''}catch(e){return ''}
+}
+const LEVEL_TXT={green:'leistbar',yellow:'knapp',orange:'lieber warten',red:'nicht leistbar'};
+function renderWish(){
+  const el=$('#p-wish');if(!el)return;
+  const all=S.wish,sort=view.wishSort||'cat';
+  if(view.wishCat&&!all.some(w=>w.cat===view.wishCat))view.wishCat='';
+  const by={cat:(a,b)=>S.wishCats.indexOf(a.cat)-S.wishCats.indexOf(b.cat)||(a.price||0)-(b.price||0),
+    asc:(a,b)=>(a.price||0)-(b.price||0),desc:(a,b)=>(b.price||0)-(a.price||0),neu:(a,b)=>String(b.added||'').localeCompare(String(a.added||''))}[sort]||((a,b)=>0);
+  const items=all.filter(w=>!view.wishCat||w.cat===view.wishCat).sort(by);
+  const sum=list=>list.reduce((s,w)=>s+cents(w.price||0),0),count=c=>all.filter(w=>w.cat===c).length;
+  const card=w=>{const img=wishImg.get(w.id),lv=wishLevel(w);
+    return `<button type="button" class="wcard" data-act="wishOpen" data-id="${w.id}"><div class="wimg">${img?`<img src="${img}" alt="">`:'Kein Bild'}${lv?`<span class="wdot ${lv}" title="Heute ${LEVEL_TXT[lv]}"></span>`:''}</div>
+      <div class="wbody"><div class="wname">${esc(w.name)}</div><div class="wprice">${w.price>0?eur(cents(w.price)):'–'}</div><div class="wcat">${esc(w.cat)}${w.shop?' · '+esc(w.shop):''}</div></div></button>`};
+  let grid;
+  if(!items.length)grid=`<div class="card sub">${all.length?'In dieser Kategorie ist nichts.':'Noch leer. Tipp unten rechts auf „Produkt“ und lade einen Screenshot hoch – Bild, Name, Preis und Kategorie werden erkannt.'}</div>`;
+  else if(sort==='cat'&&!view.wishCat)grid=[...new Set(items.map(w=>w.cat))].map(c=>{const g=items.filter(w=>w.cat===c);
+    return `<div class="wgroup"><span>${esc(c)} (${g.length})</span><span>${eur(sum(g))}</span></div><div class="wgrid">${g.map(card).join('')}</div>`}).join('');
+  else grid=`<div class="wgrid">${items.map(card).join('')}</div>`;
+  el.innerHTML=`<div class="card"><div class="mhead"><div><div class="label">${view.wishCat?esc(view.wishCat):'Alle Produkte'}</div><h2 style="font-size:20px;margin:0">${items.length} ${items.length===1?'Produkt':'Produkte'}</h2></div>
+      <div><div class="label" style="text-align:right">zusammen</div><div class="end">${eur(sum(items))}</div></div></div>
+     <p class="sub" style="margin:8px 0 0">Zählt nicht zu deinem Kontostand. Der Punkt am Bild zeigt, ob du es dir heute leisten könntest: grün = ja, gelb = knapp, rot = lieber nicht.</p></div>
+   <div class="stick">${all.length?`<div class="chips">${['',...S.wishCats.filter(c=>count(c))].map(c=>`<button type="button" class="chip ${c===(view.wishCat||'')?'on':''}" data-act="wishCat" data-c="${esc(c)}">${c?esc(c)+' · '+count(c):'Alle · '+all.length}</button>`).join('')}</div>
+    <div class="row" style="align-items:center;margin:2px 0 8px;flex-wrap:nowrap"><label class="sub" for="wishSort" style="flex:none">Sortieren</label><select id="wishSort" data-act="wishSort" style="flex:1;min-width:0;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:8px 9px">
+     <option value="cat" ${sort==='cat'?'selected':''}>nach Kategorie</option><option value="asc" ${sort==='asc'?'selected':''}>Preis: günstigste zuerst</option><option value="desc" ${sort==='desc'?'selected':''}>Preis: teuerste zuerst</option><option value="neu" ${sort==='neu'?'selected':''}>Zuletzt hinzugefügt</option></select></div>`:''}</div>
+   ${grid}
+   <div class="row"><button class="btn" type="button" data-act="wishShot">+ Screenshot</button><button class="btn" type="button" data-act="wishManual">+ Ohne Screenshot</button><button class="btn" type="button" data-act="wishCats">Kategorien</button></div>`;
+}
+/* Bildausschnitt: größter Bereich ohne Text (dort ist meist das Produktfoto) */
+function autoCropFrom(d){
+  if(!d||!d.__h||!d.lines||!d.lines.length)return null;
+  const H=d.__h,ls=d.lines.filter(l=>l.bbox&&String(l.text||'').trim().length>1).map(l=>({a:l.bbox.y0/H,b:l.bbox.y1/H})).sort((x,y)=>x.a-y.a);
+  let prev=0.05,best={a:0,b:0};
+  for(const l of ls){if(l.a-prev>best.b-best.a)best={a:prev,b:l.a};prev=Math.max(prev,l.b)}
+  if(0.98-prev>best.b-best.a)best={a:prev,b:0.98};
+  if(best.b-best.a<0.12)return null;
+  return {x:0.02,y:best.a+0.01,w:0.96,h:best.b-best.a-0.02};
+}
+async function cropToDataURL(file,crop,max=480){
+  const bmp=await decodeImage(file),W=imgW(bmp),H=imgH(bmp);
+  const c0=crop||{x:0,y:0.05,w:1,h:Math.min(0.95,W*1.1/H)};
+  const sx=c0.x*W,sy=c0.y*H,sw=Math.max(8,c0.w*W),sh=Math.max(8,c0.h*H),s=Math.min(1,max/Math.max(sw,sh));
+  const c=document.createElement('canvas');c.width=Math.round(sw*s);c.height=Math.round(sh*s);
+  const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(bmp,sx,sy,sw,sh,0,0,c.width,c.height);
+  return c.toDataURL('image/jpeg',.8);
+}
+async function thumbFromDataURL(u){
+  if(!u)return null;
+  try{const img=new Image();img.src=u;await img.decode();const s=Math.min(1,96/Math.max(img.naturalWidth,img.naturalHeight)),c=document.createElement('canvas');
+    c.width=Math.round(img.naturalWidth*s);c.height=Math.round(img.naturalHeight*s);c.getContext('2d').drawImage(img,0,0,c.width,c.height);return c.toDataURL('image/jpeg',.7)}catch(e){return null}
+}
+function initCrop(st){
+  const img=$('#wCropImg'),box=$('#wBox'),wrap=$('#wCrop');if(!img)return;
+  const show=()=>{if(!st.crop||!img.naturalWidth){box.hidden=true;return}
+    const r=img.getBoundingClientRect(),wr=wrap.getBoundingClientRect();box.hidden=false;
+    Object.assign(box.style,{left:(r.left-wr.left+st.crop.x*r.width)+'px',top:(r.top-wr.top+st.crop.y*r.height)+'px',width:st.crop.w*r.width+'px',height:st.crop.h*r.height+'px'})};
+  img.onload=show;img.src=st.url;st.show=show;
+  let p0=null;
+  const rel=e=>{const r=img.getBoundingClientRect();return {x:Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)),y:Math.min(1,Math.max(0,(e.clientY-r.top)/r.height))}};
+  wrap.onpointerdown=e=>{p0=rel(e);try{wrap.setPointerCapture(e.pointerId)}catch(_){}e.preventDefault()};
+  wrap.onpointermove=e=>{if(!p0)return;const p=rel(e);st.crop={x:Math.min(p0.x,p.x),y:Math.min(p0.y,p.y),w:Math.abs(p.x-p0.x),h:Math.abs(p.y-p0.y)};show()};
+  wrap.onpointerup=wrap.onpointercancel=()=>{if(st.crop&&(st.crop.w<0.05||st.crop.h<0.03))st.crop=st.autoCrop||null;p0=null;show()};
+}
+function wishSheet(id,st){
+  const w=id?S.wish.find(x=>x.id===id):{name:'',price:0,cat:'',shop:'',link:'',note:''};if(!w)return;
+  wishSt=st||null;
+  const img=id?wishImg.get(id):null,cat=w.cat||(S.wishCats.includes('Sonstiges')?'Sonstiges':S.wishCats[0]);
+  const imgBox=st&&st.file?`<div class="crop" id="wCrop"><img id="wCropImg" alt="Screenshot"><div class="box" id="wBox" hidden></div></div>
+      <p class="sub" style="margin:0">Zieh mit dem Finger einen Rahmen um das Produktfoto – dieser Ausschnitt wird als Bild gespeichert.</p>`
+    :img?`<div class="wdetail"><img src="${img}" alt=""></div><button class="btn" type="button" data-act="wishImgChange" data-id="${id}">Anderes Bild wählen</button>`
+    :`<button class="btn" type="button" data-act="wishImgChange" data-id="${id||''}">Bild hinzufügen (Screenshot)</button>`;
+  openSheet(id?'Produkt bearbeiten':'Zur Einkaufsliste',`<div class="stack">${imgBox}
+    <div id="wStatus" class="sub" aria-live="polite"></div>
+    <label class="field"><span>Produkt</span><input id="wName" name="name" value="${esc(w.name)}" autocomplete="off"></label>
+    <div class="grid2"><label class="field"><span>Preis (€)</span><input id="wPrice" name="price" inputmode="decimal" value="${w.price>0?numDE(w.price):''}" placeholder="0,00"></label>
+     <label class="field"><span>Kategorie</span><select id="wCat" name="cat">${S.wishCats.map(c=>`<option ${c===cat?'selected':''}>${esc(c)}</option>`).join('')}<option value="__new">+ Neue Kategorie …</option></select></label></div>
+    <label class="field" id="wNewWrap" hidden><span>Name der neuen Kategorie</span><input id="wNew" name="newcat" placeholder="z. B. Sneaker" autocomplete="off"></label>
+    <div class="grid2"><label class="field"><span>Shop (optional)</span><input id="wShop" name="shop" value="${esc(w.shop||'')}" autocomplete="off"></label>
+     <label class="field"><span>Link (optional)</span><input id="wLink" name="link" inputmode="url" value="${esc(w.link||'')}" placeholder="https://…" autocomplete="off"></label></div>
+    <label class="field"><span>Notiz (optional)</span><input id="wNote" name="note" value="${esc(w.note||'')}" placeholder="z. B. Größe 42, warten auf Sale" autocomplete="off"></label>
+    <div class="msg" role="alert"></div></div>`,
+   `${id?'<button class="btn danger" value="delete" formnovalidate>Löschen</button>':''}<span class="sp"></span><button class="btn primary" value="save">Speichern</button>`,
+   action=>{
+    const f=form.elements;
+    if(action==='delete'){commit(()=>{S.wish=S.wish.filter(x=>x.id!==id)},`„${w.name}“ von der Einkaufsliste entfernt`);return}
+    const name=f.name.value.trim();if(!name)return showErr('Bitte einen Produktnamen eingeben.');
+    const price=f.price.value.trim()?parseNum(f.price.value):0;if(isNaN(price)||price<0)return showErr('Bitte einen gültigen Preis eingeben, z. B. 49,99.');
+    let c=f.cat.value;if(c==='__new'){c=f.newcat.value.trim();if(!c)return showErr('Bitte einen Namen für die neue Kategorie eingeben.')}
+    const rec={name,price:Math.round(price*100)/100,cat:c,shop:f.shop.value.trim(),link:safeUrl(f.link.value),note:f.note.value.trim()};
+    const nid=id||'w'+uid(),s=wishSt,learn=(s&&s.guess&&c!==s.guess)||(id&&w.cat!==c);
+    (async()=>{
+      if(s&&s.file){try{const u=await cropToDataURL(s.file,s.crop);wishImg.set(nid,u);await IDB.put(nid,u)}catch(e){snack('Das Bild konnte nicht gespeichert werden.')}}
+      commit(()=>{
+        if(!S.wishCats.includes(c))S.wishCats.push(c);
+        if(learn)learnWishCat(name,c);
+        if(id)Object.assign(S.wish.find(x=>x.id===id)||{},rec);else S.wish.push({id:nid,...rec,added:new Date().toISOString()});
+      },id?'Gespeichert':`„${name}“ steht auf der Einkaufsliste`);
+      if(s&&s.url)setTimeout(()=>URL.revokeObjectURL(s.url),2000);
+    })();
+   });
+  form.elements.cat.onchange=()=>{$('#wNewWrap').hidden=form.elements.cat.value!=='__new';if(!$('#wNewWrap').hidden)$('#wNew').focus()};
+  if(st&&st.file)initCrop(st);
+}
+async function handleWishImage(picked,editId){
+  let file;
+  try{const buf=await picked.arrayBuffer();file=new File([buf],picked.name||'bild',{type:/^image\//.test(picked.type)?picked.type:sniffType(buf)})}
+  catch(e){snack('Das Bild konnte nicht gelesen werden. Wähle es bitte noch einmal aus.');return}
+  if(/heic|heif/.test(file.type)){snack('HEIC-Fotos kann der Browser nicht öffnen – nimm bitte einen Screenshot.');return}
+  if(!/^image\//.test(file.type)){snack('Bitte ein Bild auswählen (Screenshot, PNG oder JPG).');return}
+  const st={file,url:URL.createObjectURL(file),crop:null,autoCrop:null};
+  if(view.tab!=='einkauf')setTab('einkauf');
+  if(sheet.open)sheet.close();
+  wishSheet(editId||null,st);
+  if(editId)return;
+  const status=t=>{if(wishSt===st&&sheet.open){const e=$('#wStatus');if(e)e.innerHTML=t}};
+  const spin=t=>status(`<span style="display:flex;gap:10px;align-items:center"><span class="spinner"></span>${esc(t)}</span>`);
+  spin('Produkt wird erkannt …');
+  try{
+    const data=await ocr(file,spin);
+    if(wishSt!==st||!sheet.open)return;
+    const r=analyse(data),f=form.elements;
+    if(r.name&&!f.name.value)f.name.value=r.name;
+    if(r.price&&!f.price.value)f.price.value=numDE(r.price.toFixed(2));
+    if(r.shop&&!f.shop.value)f.shop.value=r.shop;
+    st.guess=guessWishCat(r.name||'',data.text||'');f.cat.value=st.guess;
+    const ac=autoCropFrom(data);if(ac&&!st.crop){st.crop=st.autoCrop=ac;st.show&&st.show()}
+    status(r.price?`Erkannt: Kategorie „${esc(st.guess)}“. Prüfe kurz die Angaben – den Bildausschnitt kannst du mit dem Finger anpassen.`:'Kein Preis erkannt – bitte selbst eintragen.');
+  }catch(e){status('Die Erkennung hat nicht funktioniert – trag die Angaben bitte selbst ein.')}
+}
+function wishDetail(id){
+  const w=S.wish.find(x=>x.id===id);if(!w)return;const img=wishImg.get(id);
+  let ver='';
+  if(w.price>0){const a=assess({name:w.name,price:w.price,date:defaultBuyDate(),cat:'Sonstiges'});
+    if(a&&!a.err){const v=verdictText(a);ver=`<div class="verdict ${a.level}" style="padding:12px;gap:6px"><div class="vh"><span class="badge">${{green:'Empfehlung',yellow:'Mit Vorsicht',orange:'Warten',red:'Abraten'}[a.level]}</span><h3 style="font-size:16px">${esc(v.head)}</h3></div><p class="sub" style="color:inherit;margin:0">${esc(v.t)}</p></div>`}}
+  openSheet(w.name,`<div class="stack wdetail">${img?`<img src="${img}" alt="">`:''}
+    <div><div class="kv"><span>Preis</span><b>${w.price>0?eur(cents(w.price)):'–'}</b></div>
+     <div class="kv"><span>Kategorie</span><b>${esc(w.cat)}</b></div>
+     ${w.shop?`<div class="kv"><span>Shop</span><b>${esc(w.shop)}</b></div>`:''}</div>
+    ${w.note?`<p class="sub" style="margin:0">${esc(w.note)}</p>`:''}
+    ${safeUrl(w.link)?`<a class="btn" href="${esc(safeUrl(w.link))}" target="_blank" rel="noopener">Zum Produkt im Shop ↗</a>`:''}
+    ${ver}</div>`,
+   `<button class="btn" type="button" data-act="wishEdit" data-id="${id}">Bearbeiten</button><span class="sp"></span><button class="btn primary" type="button" data-act="wishBuy" data-id="${id}">Gekauft – als Buchung eintragen</button>`,()=>true);
+}
+function wishBuySheet(id){
+  const w=S.wish.find(x=>x.id===id);if(!w)return;
+  const bc=EXP_CATS.includes(w.cat)?w.cat:guessCatTx(w.name+' '+(w.shop||''),-1);
+  openSheet('Als Buchung eintragen',`<div class="stack"><p class="sub" style="margin:0">„${esc(w.name)}“ wird als Ausgabe in deinen Plan übernommen und zählt ab dann zu deinem Kontostand.</p>
+    <div class="grid2"><label class="field"><span>Betrag (€)</span><input id="bAmt" name="amt" inputmode="decimal" value="${w.price>0?numDE(w.price):''}"></label>
+     <label class="field"><span>Datum</span><input id="bDate" name="date" type="date" value="${defaultBuyDate()}" min="${S.startDate}"></label></div>
+    <label class="field"><span>Kategorie der Buchung</span><select id="bCat" name="cat">${EXP_CATS.map(c=>`<option ${c===bc?'selected':''}>${esc(c)}</option>`).join('')}</select></label>
+    <label class="check"><input type="checkbox" id="bDone" name="done" checked>Schon bezahlt (abhaken)</label>
+    <label class="check"><input type="checkbox" id="bRemove" name="remove" checked>Von der Einkaufsliste entfernen</label>
+    <div class="msg" role="alert"></div></div>`,
+   `<span class="sp"></span><button class="btn primary" value="save">Eintragen</button>`,
+   ()=>{
+    const f=form.elements,n=parseNum(f.amt.value),date=f.date.value;
+    if(isNaN(n)||n<=0)return showErr('Bitte einen gültigen Betrag eingeben.');
+    if(!date||date<S.startDate)return showErr('Bitte ein Datum innerhalb deiner Planung wählen.');
+    const m=date.slice(0,7),day=+date.slice(8),done=f.done.checked,rm=f.remove.checked,cat=f.cat.value;
+    thumbFromDataURL(wishImg.get(id)).then(th=>{
+      commit(()=>{if(m>S.lastMonth)S.lastMonth=m;
+        const b={id:uid(),month:m,day,desc:w.name,amount:-n,cat,done,src:'wish',ord:placeOrd(m,day)};if(th)b.thumb=th;
+        S.bookings.push(b);if(rm)S.wish=S.wish.filter(x=>x.id!==id);view.month=m},`„${w.name}“ als Ausgabe eingetragen`);
+      setTab('buchungen');
+    });
+   });
+}
+function wishCatsSheet(){
+  const row=(c,i)=>`<div class="catrow" data-orig="${esc(c)}" style="grid-template-columns:1fr auto">
+    <label class="field"><span>${i===0?'Kategorie':'&nbsp;'}</span><input class="wcn" id="wcn${i}" value="${esc(c)}" autocomplete="off" ${c==='Sonstiges'?'readonly':''}></label>
+    ${c==='Sonstiges'?'<span style="width:40px"></span>':`<button class="ib" type="button" data-rmw aria-label="${esc(c)} löschen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>`}</div>`;
+  if(!S.wishCats.includes('Sonstiges'))S.wishCats.push('Sonstiges');
+  openSheet('Kategorien der Einkaufsliste',`<p class="sub" style="margin-top:0">Benenne Kategorien um, lösche sie oder lege neue an, z. B. „Parfüm“ oder „Sneaker“. Produkte gelöschter Kategorien landen unter „Sonstiges“.</p>
+    <div class="stack" id="wcList">${S.wishCats.map(row).join('')}</div><button class="btn full" type="button" id="wcAdd" style="margin-top:12px">+ Neue Kategorie</button><div class="msg" role="alert" style="margin-top:8px"></div>`,
+   `<span class="sp"></span><button class="btn primary" value="save">Speichern</button>`,
+   ()=>{
+    const rows=[...form.querySelectorAll('#wcList .catrow')],keep=rows.filter(r=>!r.classList.contains('removed'));
+    const names=keep.map(r=>r.querySelector('.wcn').value.trim());
+    if(names.some(n=>!n))return showErr('Jede Kategorie braucht einen Namen.');
+    if(new Set(names.map(n=>n.toLowerCase())).size!==names.length)return showErr('Jeder Name darf nur einmal vorkommen.');
+    commit(()=>{
+      const map=new Map();for(const r of rows){const o=r.dataset.orig;if(!o)continue;map.set(o,r.classList.contains('removed')?'Sonstiges':r.querySelector('.wcn').value.trim())}
+      S.wish.forEach(w=>{if(map.has(w.cat))w.cat=map.get(w.cat)});for(const k in S.wishLearn)if(map.has(S.wishLearn[k]))S.wishLearn[k]=map.get(S.wishLearn[k]);
+      S.wishCats=names;if(view.wishCat&&map.has(view.wishCat))view.wishCat=map.get(view.wishCat);
+    },'Kategorien gespeichert');
+   });
+  const wire=el=>{const b=el.querySelector('[data-rmw]');if(b)b.onclick=()=>{el.classList.add('removed');el.style.opacity=.4;el.querySelector('input').disabled=true;b.disabled=true}};
+  form.querySelectorAll('#wcList .catrow').forEach(wire);
+  $('#wcAdd').onclick=()=>{const i=form.querySelectorAll('#wcList .catrow').length;$('#wcList').insertAdjacentHTML('beforeend',row('',i));const el=$('#wcList').lastElementChild;el.dataset.orig='';wire(el);el.querySelector('input').focus()};
+}
+$('#wishFile').addEventListener('change',e=>{const f=e.target.files[0];if(f)handleWishImage(f,view.wishEditId).finally(()=>{e.target.value='';view.wishEditId=null})});
+// Gespeicherte Produktbilder laden; Bilder gelöschter Produkte beim Start aufräumen
+IDB.all().then(o=>{const ids=new Set((S.wish||[]).map(w=>w.id));
+  for(const [k,v] of Object.entries(o)){if(ids.has(k))wishImg.set(k,v);else IDB.del(k).catch(()=>{})}
+  renderWish()}).catch(()=>{});
 
 /* ---------- Start ---------- */
 generate();
