@@ -180,6 +180,19 @@ main{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px
 .crop img{display:block;max-width:100%;max-height:56vh;pointer-events:none}
 .crop .box{position:absolute;border:2px solid var(--accent);box-shadow:0 0 0 9999px rgba(0,0,0,.45);border-radius:6px;pointer-events:none}
 .wdetail img{width:100%;max-height:46vh;object-fit:contain;border-radius:14px;background:var(--surface-2)}
+/* Auswahl-Gruppe (mehrere Produkte, nur eins wird gekauft) */
+.wcmp{grid-column:1/-1;background:var(--surface);border-radius:18px;box-shadow:var(--shadow);padding:12px;border:2px solid var(--accent-soft);min-width:0}
+.wcmp-h{display:flex;justify-content:space-between;gap:10px;align-items:flex-end;margin-bottom:10px}
+.wcmp-t{font-family:var(--display);font-size:18px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wcmp-row{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.wcmp-row::-webkit-scrollbar{display:none}
+.wmini{flex:0 0 132px;box-shadow:none;border:1px solid var(--line)}
+.best{font-size:11px;font-weight:700;border-radius:999px;padding:1px 7px;background:var(--pos-bg);color:var(--pos)}
+.cmp-r{display:grid;grid-template-columns:56px 1fr auto;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--grid);cursor:pointer;background:none;border-left:0;border-right:0;border-top:0;width:100%;text-align:left;color:inherit;font:inherit}
+.cmp-r img,.cmp-r .ph{width:56px;height:56px;border-radius:10px;object-fit:cover;background:var(--surface-2)}
+.cmp-bar{height:8px;border-radius:4px;background:var(--surface-2);margin-top:5px;overflow:hidden}
+.cmp-bar span{display:block;height:100%;background:var(--bar);border-radius:4px}
+.cmp-bar span.min{background:var(--pos)}
 .nav button svg{width:22px;height:22px}
 .nav button[aria-current="page"]{color:var(--ink);font-weight:700}
 .nav button[aria-current="page"] .ic{background:var(--accent-soft);color:var(--accent)}
@@ -1345,6 +1358,8 @@ document.addEventListener('click',async e=>{
     case 'wishBuy':sheet.close();wishBuySheet(id);break;
     case 'wishCat':view.wishCat=t.dataset.c||'';renderWish();break;
     case 'wishCats':wishCatsSheet();break;
+    case 'wishCompare':wishCompare(t.dataset.g);break;
+    case 'wishAddTo':if(sheet.open)sheet.close();view.wishEditId=null;view.wishPresetGroup=t.dataset.g||'';$('#wishFile').click();break;
     case 'importData':if(sheet.open)sheet.close();importSheet();break;
     case 'notify':await toggleNotify();if(sheet.open){sheet.close();settingsSheet()}break;
     case 'goalAdd':goalSheet(null);break;
@@ -2039,25 +2054,57 @@ function wishLevel(w){
   try{const a=assess({name:w.name,price:w.price,date:defaultBuyDate(),cat:'Sonstiges'});return a&&!a.err?a.level:''}catch(e){return ''}
 }
 const LEVEL_TXT={green:'leistbar',yellow:'knapp',orange:'lieber warten',red:'nicht leistbar'};
+/* Auswahl-Gruppen: mehrere Produkte, von denen man nur eins kaufen will (z. B. drei Winterstiefel).
+   In Summen zählt eine Gruppe nur mit dem Durchschnittspreis ihrer Produkte. */
+const groupKey=g=>String(g||'').trim().toLowerCase();
+const groupItems=g=>S.wish.filter(w=>w.group&&groupKey(w.group)===groupKey(g));
+const wishGroups=()=>[...new Map(S.wish.filter(w=>w.group).map(w=>[groupKey(w.group),w.group])).values()];
+function wishEntries(){
+  const out=[],seen=new Set();
+  for(const w of S.wish){
+    const k=groupKey(w.group),items=k?groupItems(w.group):[];
+    if(items.length>1){
+      if(seen.has(k))continue;seen.add(k);
+      const pr=items.filter(x=>x.price>0).map(x=>x.price),cc=new Map();items.forEach(x=>cc.set(x.cat,(cc.get(x.cat)||0)+1));
+      out.push({type:'group',name:items[0].group,items,cat:[...cc].sort((a,b)=>b[1]-a[1])[0][0],
+        price:pr.length?Math.round(pr.reduce((s,x)=>s+x,0)/pr.length*100)/100:0,min:pr.length?Math.min(...pr):0,max:pr.length?Math.max(...pr):0,
+        added:items.map(x=>x.added||'').sort().at(-1)});
+    }else out.push({type:'item',w,cat:w.cat,price:w.price||0,added:w.added||''});
+  }
+  return out;
+}
 function renderWish(){
   const el=$('#p-wish');if(!el)return;
   const all=S.wish,sort=view.wishSort||'cat';
   if(view.wishCat&&!all.some(w=>w.cat===view.wishCat))view.wishCat='';
-  const by={cat:(a,b)=>S.wishCats.indexOf(a.cat)-S.wishCats.indexOf(b.cat)||(a.price||0)-(b.price||0),
-    asc:(a,b)=>(a.price||0)-(b.price||0),desc:(a,b)=>(b.price||0)-(a.price||0),neu:(a,b)=>String(b.added||'').localeCompare(String(a.added||''))}[sort]||((a,b)=>0);
-  const items=all.filter(w=>!view.wishCat||w.cat===view.wishCat).sort(by);
-  const sum=list=>list.reduce((s,w)=>s+cents(w.price||0),0),count=c=>all.filter(w=>w.cat===c).length;
-  const card=w=>{const img=wishImg.get(w.id),lv=wishLevel(w);
-    return `<button type="button" class="wcard" data-act="wishOpen" data-id="${w.id}"><div class="wimg">${img?`<img src="${img}" alt="">`:'Kein Bild'}${lv?`<span class="wdot ${lv}" title="Heute ${LEVEL_TXT[lv]}"></span>`:''}</div>
+  const by={cat:(a,b)=>S.wishCats.indexOf(a.cat)-S.wishCats.indexOf(b.cat)||a.price-b.price,
+    asc:(a,b)=>a.price-b.price,desc:(a,b)=>b.price-a.price,neu:(a,b)=>String(b.added).localeCompare(String(a.added))}[sort]||((a,b)=>0);
+  const entries=wishEntries().filter(e=>!view.wishCat||(e.type==='item'?e.cat===view.wishCat:e.items.some(x=>x.cat===view.wishCat))).sort(by);
+  const sum=list=>list.reduce((s,e)=>s+cents(e.price||0),0),count=c=>all.filter(w=>w.cat===c).length;
+  const nProducts=entries.reduce((s,e)=>s+(e.type==='group'?e.items.length:1),0),nGroups=entries.filter(e=>e.type==='group').length;
+  const dot=w=>{const lv=wishLevel(w);return lv?`<span class="wdot ${lv}" title="Heute ${LEVEL_TXT[lv]}"></span>`:''};
+  const card=w=>{const img=wishImg.get(w.id);
+    return `<button type="button" class="wcard" data-act="wishOpen" data-id="${w.id}"><div class="wimg">${img?`<img src="${img}" alt="">`:'Kein Bild'}${dot(w)}</div>
       <div class="wbody"><div class="wname">${esc(w.name)}</div><div class="wprice">${w.price>0?eur(cents(w.price)):'–'}</div><div class="wcat">${esc(w.cat)}${w.shop?' · '+esc(w.shop):''}</div></div></button>`};
+  const groupCard=e=>{
+    const sorted=e.items.slice().sort((a,b)=>(a.price>0?a.price:1e9)-(b.price>0?b.price:1e9));
+    return `<div class="wcmp"><div class="wcmp-h"><div style="min-width:0"><div class="label">Auswahl · du willst nur 1 davon</div><b class="wcmp-t">${esc(e.name)}</b>
+        <div class="sub">${e.items.length} Produkte${e.min?` · ${eur(cents(e.min))} bis ${eur(cents(e.max))}`:''}</div></div>
+        <div style="text-align:right;flex:none"><div class="label">zählt mit Ø</div><div class="wprice">${e.price?eur(cents(e.price)):'–'}</div></div></div>
+      <div class="wcmp-row">${sorted.map(w=>{const img=wishImg.get(w.id),d=w.price>0&&e.min>0?w.price-e.min:0;
+        return `<button type="button" class="wcard wmini" data-act="wishOpen" data-id="${w.id}"><div class="wimg">${img?`<img src="${img}" alt="">`:'Kein Bild'}${dot(w)}</div>
+          <div class="wbody"><div class="wname">${esc(w.name)}</div><div class="wprice" style="font-size:15px">${w.price>0?eur(cents(w.price)):'–'}</div>
+          <div class="wcat">${w.price>0&&w.price===e.min?'<span class="best">günstigste</span>':d>0?`+${eur(cents(d))}`:''}</div></div></button>`}).join('')}</div>
+      <div class="row" style="margin-top:10px"><button class="btn tonal" type="button" data-act="wishCompare" data-g="${esc(e.name)}">Preise vergleichen</button><button class="btn" type="button" data-act="wishAddTo" data-g="${esc(e.name)}">+ Weiteres</button></div></div>`};
+  const tile=e=>e.type==='group'?groupCard(e):card(e.w);
   let grid;
-  if(!items.length)grid=`<div class="card sub">${all.length?'In dieser Kategorie ist nichts.':'Noch leer. Tipp unten rechts auf „Produkt“ und lade einen Screenshot hoch – Bild, Name, Preis und Kategorie werden erkannt.'}</div>`;
-  else if(sort==='cat'&&!view.wishCat)grid=[...new Set(items.map(w=>w.cat))].map(c=>{const g=items.filter(w=>w.cat===c);
-    return `<div class="wgroup"><span>${esc(c)} (${g.length})</span><span>${eur(sum(g))}</span></div><div class="wgrid">${g.map(card).join('')}</div>`}).join('');
-  else grid=`<div class="wgrid">${items.map(card).join('')}</div>`;
-  el.innerHTML=`<div class="card"><div class="mhead"><div><div class="label">${view.wishCat?esc(view.wishCat):'Alle Produkte'}</div><h2 style="font-size:20px;margin:0">${items.length} ${items.length===1?'Produkt':'Produkte'}</h2></div>
-      <div><div class="label" style="text-align:right">zusammen</div><div class="end">${eur(sum(items))}</div></div></div>
-     <p class="sub" style="margin:8px 0 0">Zählt nicht zu deinem Kontostand. Der Punkt am Bild zeigt, ob du es dir heute leisten könntest: grün = ja, gelb = knapp, rot = lieber nicht.</p></div>
+  if(!entries.length)grid=`<div class="card sub">${all.length?'In dieser Kategorie ist nichts.':'Noch leer. Tipp unten rechts auf „Produkt“ und lade einen Screenshot hoch – Bild, Name, Preis und Kategorie werden erkannt.'}</div>`;
+  else if(sort==='cat'&&!view.wishCat)grid=[...new Set(entries.map(e=>e.cat))].map(c=>{const g=entries.filter(e=>e.cat===c);
+    return `<div class="wgroup"><span>${esc(c)} (${g.reduce((s,e)=>s+(e.type==='group'?e.items.length:1),0)})</span><span>${eur(sum(g))}</span></div><div class="wgrid">${g.map(tile).join('')}</div>`}).join('');
+  else grid=`<div class="wgrid">${entries.map(tile).join('')}</div>`;
+  el.innerHTML=`<div class="card"><div class="mhead"><div><div class="label">${view.wishCat?esc(view.wishCat):'Alle Produkte'}</div><h2 style="font-size:20px;margin:0">${nProducts} ${nProducts===1?'Produkt':'Produkte'}</h2></div>
+      <div><div class="label" style="text-align:right">zusammen</div><div class="end">${eur(sum(entries))}</div></div></div>
+     <p class="sub" style="margin:8px 0 0">${nGroups?`Bei ${nGroups===1?'der Auswahl':'Auswahlen'} (nur 1 Produkt davon) zählt der Durchschnittspreis. `:''}Zählt nicht zu deinem Kontostand. Der Punkt am Bild zeigt, ob du es dir heute leisten könntest: grün = ja, gelb = knapp, rot = lieber nicht.</p></div>
    <div class="stick">${all.length?`<div class="chips">${['',...S.wishCats.filter(c=>count(c))].map(c=>`<button type="button" class="chip ${c===(view.wishCat||'')?'on':''}" data-act="wishCat" data-c="${esc(c)}">${c?esc(c)+' · '+count(c):'Alle · '+all.length}</button>`).join('')}</div>
     <div class="row" style="align-items:center;margin:2px 0 8px;flex-wrap:nowrap"><label class="sub" for="wishSort" style="flex:none">Sortieren</label><select id="wishSort" data-act="wishSort" style="flex:1;min-width:0;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:8px 9px">
      <option value="cat" ${sort==='cat'?'selected':''}>nach Kategorie</option><option value="asc" ${sort==='asc'?'selected':''}>Preis: günstigste zuerst</option><option value="desc" ${sort==='desc'?'selected':''}>Preis: teuerste zuerst</option><option value="neu" ${sort==='neu'?'selected':''}>Zuletzt hinzugefügt</option></select></div>`:''}</div>
@@ -2115,6 +2162,9 @@ function wishSheet(id,st){
     <label class="field" id="wNewWrap" hidden><span>Name der neuen Kategorie</span><input id="wNew" name="newcat" placeholder="z. B. Sneaker" autocomplete="off"></label>
     <div class="grid2"><label class="field"><span>Shop (optional)</span><input id="wShop" name="shop" value="${esc(w.shop||'')}" autocomplete="off"></label>
      <label class="field"><span>Link (optional)</span><input id="wLink" name="link" inputmode="url" value="${esc(w.link||'')}" placeholder="https://…" autocomplete="off"></label></div>
+    <label class="field"><span>Auswahl-Gruppe (optional)</span><input id="wGroup" name="group" list="wGroupList" value="${esc(w.group||(st&&st.group)||'')}" placeholder="z. B. Winterstiefel" autocomplete="off">
+     <datalist id="wGroupList">${wishGroups().map(g=>`<option value="${esc(g)}"></option>`).join('')}</datalist></label>
+    <p class="sub" style="margin:-6px 0 0">Mehrere Produkte, von denen du nur eins kaufen willst, bekommen dieselbe Gruppe. Sie werden dann nebeneinander verglichen und zählen in der Summe nur mit dem Durchschnittspreis.</p>
     <label class="field"><span>Notiz (optional)</span><input id="wNote" name="note" value="${esc(w.note||'')}" placeholder="z. B. Größe 42, warten auf Sale" autocomplete="off"></label>
     <div class="msg" role="alert"></div></div>`,
    `${id?'<button class="btn danger" value="delete" formnovalidate>Löschen</button>':''}<span class="sp"></span><button class="btn primary" value="save">Speichern</button>`,
@@ -2124,7 +2174,9 @@ function wishSheet(id,st){
     const name=f.name.value.trim();if(!name)return showErr('Bitte einen Produktnamen eingeben.');
     const price=f.price.value.trim()?parseNum(f.price.value):0;if(isNaN(price)||price<0)return showErr('Bitte einen gültigen Preis eingeben, z. B. 49,99.');
     let c=f.cat.value;if(c==='__new'){c=f.newcat.value.trim();if(!c)return showErr('Bitte einen Namen für die neue Kategorie eingeben.')}
-    const rec={name,price:Math.round(price*100)/100,cat:c,shop:f.shop.value.trim(),link:safeUrl(f.link.value),note:f.note.value.trim()};
+    // Gruppenname wie bereits vorhanden schreiben (Groß-/Kleinschreibung egal)
+    const gIn=f.group.value.trim(),group=gIn?(wishGroups().find(g=>groupKey(g)===groupKey(gIn))||gIn):'';
+    const rec={name,price:Math.round(price*100)/100,cat:c,shop:f.shop.value.trim(),link:safeUrl(f.link.value),note:f.note.value.trim(),group};
     const nid=id||'w'+uid(),s=wishSt,learn=(s&&s.guess&&c!==s.guess)||(id&&w.cat!==c);
     (async()=>{
       if(s&&s.file){try{const u=await cropToDataURL(s.file,s.crop);wishImg.set(nid,u);await IDB.put(nid,u)}catch(e){snack('Das Bild konnte nicht gespeichert werden.')}}
@@ -2145,7 +2197,8 @@ async function handleWishImage(picked,editId){
   catch(e){snack('Das Bild konnte nicht gelesen werden. Wähle es bitte noch einmal aus.');return}
   if(/heic|heif/.test(file.type)){snack('HEIC-Fotos kann der Browser nicht öffnen – nimm bitte einen Screenshot.');return}
   if(!/^image\//.test(file.type)){snack('Bitte ein Bild auswählen (Screenshot, PNG oder JPG).');return}
-  const st={file,url:URL.createObjectURL(file),crop:null,autoCrop:null};
+  const st={file,url:URL.createObjectURL(file),crop:null,autoCrop:null,group:editId?'':(view.wishPresetGroup||'')};
+  view.wishPresetGroup='';
   if(view.tab!=='einkauf')setTab('einkauf');
   if(sheet.open)sheet.close();
   wishSheet(editId||null,st);
@@ -2175,9 +2228,27 @@ function wishDetail(id){
      <div class="kv"><span>Kategorie</span><b>${esc(w.cat)}</b></div>
      ${w.shop?`<div class="kv"><span>Shop</span><b>${esc(w.shop)}</b></div>`:''}</div>
     ${w.note?`<p class="sub" style="margin:0">${esc(w.note)}</p>`:''}
+    ${w.group&&groupItems(w.group).length>1?`<button class="btn tonal" type="button" data-act="wishCompare" data-g="${esc(w.group)}">Teil der Auswahl „${esc(w.group)}“ – mit ${groupItems(w.group).length-1} anderen vergleichen</button>`:''}
     ${safeUrl(w.link)?`<a class="btn" href="${esc(safeUrl(w.link))}" target="_blank" rel="noopener">Zum Produkt im Shop ↗</a>`:''}
     ${ver}</div>`,
    `<button class="btn" type="button" data-act="wishEdit" data-id="${id}">Bearbeiten</button><span class="sp"></span><button class="btn primary" type="button" data-act="wishBuy" data-id="${id}">Gekauft – als Buchung eintragen</button>`,()=>true);
+}
+/* Preisvergleich einer Auswahl-Gruppe */
+function wishCompare(name){
+  const items=groupItems(name).sort((a,b)=>(a.price>0?a.price:1e9)-(b.price>0?b.price:1e9));if(!items.length)return;
+  const pr=items.filter(w=>w.price>0).map(w=>w.price),min=pr.length?Math.min(...pr):0,max=pr.length?Math.max(...pr):0,avg=pr.length?pr.reduce((s,x)=>s+x,0)/pr.length:0;
+  openSheet('Vergleich: '+items[0].group,`<div class="stack">
+    <div>${items.map(w=>{const img=wishImg.get(w.id),lv=wishLevel(w),d=w.price>0&&min?w.price-min:0;
+      return `<button type="button" class="cmp-r" data-act="wishOpen" data-id="${w.id}">${img?`<img src="${img}" alt="">`:'<span class="ph"></span>'}
+        <span style="min-width:0"><span class="wname" style="display:-webkit-box">${esc(w.name)}</span><span class="wcat" style="display:block">${esc(w.shop||w.cat)}${lv?' · heute '+LEVEL_TXT[lv]:''}</span>
+         <span class="cmp-bar"><span class="${w.price===min?'min':''}" style="width:${max?Math.max(4,w.price/max*100):0}%"></span></span></span>
+        <span style="text-align:right"><b class="wprice" style="font-size:16px">${w.price>0?eur(cents(w.price)):'–'}</b><span style="display:block;font-size:12px">${w.price>0&&w.price===min?'<span class="best">günstigste</span>':d>0?`<span class="neg">+${eur(cents(d))}</span>`:''}</span></span></button>`}).join('')}</div>
+    ${pr.length>1?`<div><div class="kv"><span>Günstigste</span><b class="pos">${eur(cents(min))}</b></div>
+     <div class="kv"><span>Teuerste</span><b>${eur(cents(max))}</b></div>
+     <div class="kv"><span>Unterschied</span><b>${eur(cents(max-min))} (${Math.round((max-min)/max*100)} %)</b></div>
+     <div class="kv"><span>Durchschnitt – zählt in der Summe</span><b>${eur(cents(avg))}</b></div></div>`:''}
+    <p class="sub" style="margin:0">Tipp auf ein Produkt, um Details zu sehen oder es zu kaufen. Beim Kauf kannst du die anderen gleich von der Liste nehmen.</p></div>`,
+   `<button class="btn" type="button" data-act="wishAddTo" data-g="${esc(items[0].group)}">+ Weiteres Produkt</button><span class="sp"></span><button class="btn primary" value="save">Fertig</button>`,()=>true);
 }
 function wishBuySheet(id){
   const w=S.wish.find(x=>x.id===id);if(!w)return;
@@ -2188,17 +2259,19 @@ function wishBuySheet(id){
     <label class="field"><span>Kategorie der Buchung</span><select id="bCat" name="cat">${EXP_CATS.map(c=>`<option ${c===bc?'selected':''}>${esc(c)}</option>`).join('')}</select></label>
     <label class="check"><input type="checkbox" id="bDone" name="done" checked>Schon bezahlt (abhaken)</label>
     <label class="check"><input type="checkbox" id="bRemove" name="remove" checked>Von der Einkaufsliste entfernen</label>
+    ${w.group&&groupItems(w.group).length>1?`<label class="check"><input type="checkbox" id="bRemoveGroup" name="removeGroup" checked>Die ${groupItems(w.group).length-1} anderen aus „${esc(w.group)}“ auch entfernen (du hast dich entschieden)</label>`:''}
     <div class="msg" role="alert"></div></div>`,
    `<span class="sp"></span><button class="btn primary" value="save">Eintragen</button>`,
    ()=>{
     const f=form.elements,n=parseNum(f.amt.value),date=f.date.value;
     if(isNaN(n)||n<=0)return showErr('Bitte einen gültigen Betrag eingeben.');
     if(!date||date<S.startDate)return showErr('Bitte ein Datum innerhalb deiner Planung wählen.');
-    const m=date.slice(0,7),day=+date.slice(8),done=f.done.checked,rm=f.remove.checked,cat=f.cat.value;
+    const m=date.slice(0,7),day=+date.slice(8),done=f.done.checked,rm=f.remove.checked,cat=f.cat.value,rmG=!!(f.removeGroup&&f.removeGroup.checked),gk=groupKey(w.group);
     thumbFromDataURL(wishImg.get(id)).then(th=>{
       commit(()=>{if(m>S.lastMonth)S.lastMonth=m;
         const b={id:uid(),month:m,day,desc:w.name,amount:-n,cat,done,src:'wish',ord:placeOrd(m,day)};if(th)b.thumb=th;
-        S.bookings.push(b);if(rm)S.wish=S.wish.filter(x=>x.id!==id);view.month=m},`„${w.name}“ als Ausgabe eingetragen`);
+        S.bookings.push(b);
+        S.wish=S.wish.filter(x=>!(x.id===id?rm:(rmG&&gk&&groupKey(x.group)===gk)));view.month=m},`„${w.name}“ als Ausgabe eingetragen`);
       setTab('buchungen');
     });
    });
