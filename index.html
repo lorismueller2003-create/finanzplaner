@@ -183,9 +183,8 @@ main{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px
 /* Auswahl-Gruppe (mehrere Produkte, nur eins wird gekauft) */
 .wcmp{grid-column:1/-1;background:var(--surface);border-radius:18px;box-shadow:var(--shadow);padding:12px;border:2px solid var(--accent-soft);min-width:0}
 .wcmp-h{display:flex;justify-content:space-between;gap:10px;align-items:flex-end;margin-bottom:10px;width:100%;border:0;background:none;padding:0;font:inherit;color:inherit;cursor:pointer;text-align:left}
-.grip{position:absolute;top:6px;left:6px;width:32px;height:32px;border-radius:10px;background:color-mix(in srgb,var(--surface) 85%,transparent);color:var(--ink-2);display:grid;place-items:center;touch-action:none;cursor:grab;box-shadow:var(--shadow)}
-.grip svg{width:18px;height:18px}
-.wmini.dragging{opacity:.75;transform:scale(1.04);box-shadow:0 8px 24px rgba(0,0,0,.25);z-index:2}
+.wmini{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.wmini.dragging{opacity:.85;transform:scale(1.06);box-shadow:0 10px 28px rgba(0,0,0,.3);z-index:2;outline:2px solid var(--accent);cursor:grabbing}
 .gal{position:relative}
 .gal-track{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;border-radius:14px;background:var(--surface-2)}
 .gal-track::-webkit-scrollbar{display:none}
@@ -1351,7 +1350,7 @@ function varSheet(id){
 /* ---------- Ereignisse ---------- */
 document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
 document.addEventListener('click',async e=>{
-  if(e.target.closest('[data-drag]'))return;  // Griff zum Sortieren öffnet nichts
+  if(Date.now()-lpClickBlock<500)return;  // Ende eines Verschiebens öffnet nichts
   const t=e.target.closest('[data-act]');if(!t||t.tagName==='SELECT'||t.type==='range')return;
   const id=t.dataset.id,a=t.dataset.act;
   switch(a){
@@ -2128,8 +2127,7 @@ function renderWish(){
         <span class="sub" style="display:block">${e.items.length} Produkte${e.min?` · ${eur(cents(e.min))} bis ${eur(cents(e.max))}`:''}</span></span>
         <span style="text-align:right;flex:none"><span class="label" style="display:block">zählt mit Ø${e.want>1?' × '+e.want:''}</span><span class="wprice" style="display:block">${e.price?eur(cents(e.price)):'–'}</span></span></button>
       <div class="wcmp-row">${e.items.map(w=>{const img=wishImg.get(w.id)||w.imgUrl,d=w.price>0&&e.min>0?w.price-e.min:0;
-        return `<button type="button" class="wcard wmini" data-act="wishOpen" data-id="${w.id}"><div class="wimg">${img?`<img src="${esc(img)}" alt="" referrerpolicy="no-referrer">`:'Kein Bild'}${dot(w)}
-            <span class="grip" data-drag="${w.id}" title="Ziehen zum Sortieren" aria-label="Verschieben"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></span></div>
+        return `<button type="button" class="wcard wmini" data-act="wishOpen" data-id="${w.id}"><div class="wimg">${img?`<img src="${esc(img)}" alt="" referrerpolicy="no-referrer" draggable="false">`:'Kein Bild'}${dot(w)}</div>
           <div class="wbody"><div class="wname">${esc(w.name)}</div><div class="wprice" style="font-size:15px">${w.price>0?eur(cents(w.price)):'–'}</div>
           <div class="wcat">${w.price>0&&w.price===e.min?'<span class="best">günstigste</span>':d>0?`+${eur(cents(d))}`:''}</div></div></button>`}).join('')}</div>
       <div class="row" style="margin-top:10px"><button class="btn tonal" type="button" data-act="wishCompare" data-g="${esc(e.name)}">Alle ansehen &amp; vergleichen</button><button class="btn" type="button" data-act="wishAddTo" data-g="${esc(e.name)}">+ Weiteres</button></div></div>`;
@@ -2140,8 +2138,7 @@ function renderWish(){
     return `<div class="wgroup"><span>${esc(c)} (${g.reduce((s,e)=>s+(e.type==='group'?e.items.length:1),0)})</span><span>${eur(sum(g))}</span></div><div class="wgrid">${g.map(tile).join('')}</div>`}).join('');
   else grid=`<div class="wgrid">${entries.map(tile).join('')}</div>`;
   el.innerHTML=`<div class="card"><div class="mhead"><div><div class="label">${view.wishCat?esc(view.wishCat):'Alle Produkte'}</div><h2 style="font-size:20px;margin:0">${nProducts} ${nProducts===1?'Produkt':'Produkte'}</h2></div>
-      <div><div class="label" style="text-align:right">zusammen</div><div class="end">${eur(sum(entries))}</div></div></div>
-     <p class="sub" style="margin:8px 0 0">${nGroups?`Bei Auswahl-Gruppen zählt der Durchschnittspreis × die Anzahl, die du kaufen willst. `:''}Zählt nicht zu deinem Kontostand. Der Punkt am Bild zeigt, ob du es dir heute leisten könntest: grün = ja, gelb = knapp, rot = lieber nicht.</p></div>
+      <div><div class="label" style="text-align:right">zusammen</div><div class="end">${eur(sum(entries))}</div></div></div></div>
    <div class="stick">${all.length?`<div class="chips">${['',...S.wishCats.filter(c=>count(c))].map(c=>`<button type="button" class="chip ${c===(view.wishCat||'')?'on':''}" data-act="wishCat" data-c="${esc(c)}">${c?esc(c)+' · '+count(c):'Alle · '+all.length}</button>`).join('')}</div>
     <div class="row" style="align-items:center;margin:2px 0 8px;flex-wrap:nowrap"><label class="sub" for="wishSort" style="flex:none">Sortieren</label><select id="wishSort" data-act="wishSort" style="flex:1;min-width:0;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:8px 9px">
      <option value="cat" ${sort==='cat'?'selected':''}>nach Kategorie</option><option value="asc" ${sort==='asc'?'selected':''}>Preis: günstigste zuerst</option><option value="desc" ${sort==='desc'?'selected':''}>Preis: teuerste zuerst</option><option value="neu" ${sort==='neu'?'selected':''}>Zuletzt hinzugefügt</option></select></div>`:''}</div>
@@ -2343,7 +2340,7 @@ function wishCompare(name){
          <span><b class="wprice" style="font-size:17px">${w.price>0?eur(cents(w.price)):'–'}</b> ${w.price>0&&w.price===min&&pr.length>1?'<span class="best">günstigste</span>':d>0?`<span class="neg" style="font-size:12px">+${eur(cents(d))}</span>`:''}</span>
          <span class="cmp-bar"><span class="${w.price===min?'min':''}" style="width:${max?Math.max(4,w.price/max*100):0}%"></span></span>
          <span class="wcat">${esc(w.shop||w.cat)}${lv?' · heute '+LEVEL_TXT[lv]:''}${w.note?' · '+esc(w.note):''}</span></span></button>`}).join('')}</div>
-    <p class="sub" style="margin:0">Tipp auf ein Produkt für Details oder zum Kaufen. Die Reihenfolge änderst du in der Liste, indem du ein Produkt am Griff ⠿ ziehst.</p></div>`,
+    <p class="sub" style="margin:0">Tipp auf ein Produkt für Details oder zum Kaufen. Die Reihenfolge änderst du in der Liste: Produkt gedrückt halten und verschieben.</p></div>`,
    `<button class="btn" type="button" data-act="wishAddTo" data-g="${esc(g)}">+ Weiteres Produkt</button><span class="sp"></span><button class="btn primary" value="save">Fertig</button>`,()=>true);
 }
 function wishBuySheet(id){
@@ -2501,29 +2498,39 @@ function linkSheet(prefillUrl,title){
   if(!prefillUrl)setTimeout(()=>form.elements.url.focus(),50);
 }
 
-/* ---------- Drag & Drop: Reihenfolge der Produkte in einer Gruppe ---------- */
+/* ---------- Drag & Drop: Produkt gedrückt halten (ca. 0,4 s) und verschieben ----------
+   Kurzes Tippen öffnet das Produkt, normales Wischen scrollt die Reihe. */
+let lp=null,lpScroll=null,lpClickBlock=0;
 document.addEventListener('pointerdown',e=>{
-  const grip=e.target.closest('[data-drag]');if(!grip)return;
-  e.preventDefault();e.stopPropagation();
-  const card=grip.closest('.wmini'),row=card&&card.parentElement;if(!row)return;
-  try{grip.setPointerCapture(e.pointerId)}catch(_){}
-  card.classList.add('dragging');let moved=false,scrollT=null;
-  const move=ev=>{
-    moved=true;const x=ev.clientX,rr=row.getBoundingClientRect();
-    let before=null;for(const s of row.querySelectorAll('.wmini:not(.dragging)')){const r=s.getBoundingClientRect();if(x<r.left+r.width/2){before=s;break}}
-    if(before!==card.nextElementSibling)row.insertBefore(card,before);
-    clearInterval(scrollT);scrollT=null;
-    if(x<rr.left+36)scrollT=setInterval(()=>row.scrollLeft-=10,16);else if(x>rr.right-36)scrollT=setInterval(()=>row.scrollLeft+=10,16);
-  };
-  const end=()=>{
-    grip.removeEventListener('pointermove',move);clearInterval(scrollT);card.classList.remove('dragging');
-    if(!moved)return;
-    const ids=[...row.querySelectorAll('.wmini')].map(c=>c.dataset.id);
-    commit(()=>{ids.forEach((id,i)=>{const w=S.wish.find(x=>x.id===id);if(w)w.gorder=i})},'Reihenfolge gespeichert');
-  };
-  grip.addEventListener('pointermove',move);
-  grip.addEventListener('pointerup',end,{once:true});grip.addEventListener('pointercancel',end,{once:true});
-},{capture:true});
+  const card=e.target.closest('.wcmp-row .wmini');if(!card||(e.pointerType==='mouse'&&e.button!==0))return;
+  lp={card,row:card.parentElement,id:e.pointerId,x:e.clientX,y:e.clientY,drag:false,moved:false};
+  lp.timer=setTimeout(()=>{if(!lp)return;lp.drag=true;card.classList.add('dragging');
+    try{card.setPointerCapture(lp.id)}catch(_){}try{navigator.vibrate&&navigator.vibrate(25)}catch(_){}},400);
+},true);
+document.addEventListener('pointermove',e=>{
+  if(!lp||e.pointerId!==lp.id)return;
+  if(!lp.drag){if(Math.hypot(e.clientX-lp.x,e.clientY-lp.y)>8){clearTimeout(lp.timer);lp=null}return}  // Finger bewegt sich vorher: Scrollen
+  e.preventDefault();lp.moved=true;
+  const {card,row}=lp,x=e.clientX,rr=row.getBoundingClientRect();
+  let before=null;for(const s of row.querySelectorAll('.wmini:not(.dragging)')){const r=s.getBoundingClientRect();if(x<r.left+r.width/2){before=s;break}}
+  if(before!==card.nextElementSibling)row.insertBefore(card,before);
+  clearInterval(lpScroll);lpScroll=null;
+  if(x<rr.left+36)lpScroll=setInterval(()=>row.scrollLeft-=10,16);else if(x>rr.right-36)lpScroll=setInterval(()=>row.scrollLeft+=10,16);
+},true);
+function lpEnd(e){
+  if(!lp||e.pointerId!==lp.id)return;
+  clearTimeout(lp.timer);clearInterval(lpScroll);
+  const {card,row,drag,moved}=lp;lp=null;
+  if(!drag)return;
+  card.classList.remove('dragging');lpClickBlock=Date.now();  // das anschließende „Tippen“ nicht als Öffnen werten
+  if(!moved)return;
+  const ids=[...row.querySelectorAll('.wmini')].map(c=>c.dataset.id);
+  commit(()=>{ids.forEach((id,i)=>{const w=S.wish.find(x=>x.id===id);if(w)w.gorder=i})},'Reihenfolge gespeichert');
+}
+document.addEventListener('pointerup',lpEnd,true);document.addEventListener('pointercancel',lpEnd,true);
+// Während des Verschiebens nicht scrollen; kein Bild-Kontextmenü beim langen Drücken
+document.addEventListener('touchmove',e=>{if(lp&&lp.drag)e.preventDefault()},{passive:false});
+document.addEventListener('contextmenu',e=>{if(e.target.closest('.wcmp-row'))e.preventDefault()});
 
 /* Links, die aus anderen Apps geteilt wurden („Teilen“ → Finanzplaner) */
 function handleShareTarget(){
