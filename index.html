@@ -1439,7 +1439,7 @@ function settingsSheet(){
     <div class="row"><button class="btn" type="button" data-act="rules">↻ Laufende Buchungen</button><button class="btn" type="button" data-act="cats">Kategorien &amp; Budgets</button></div>
     <label class="check" style="justify-content:space-between"><span>Mitteilung zum Monatsende<br><span class="sub">Erinnert dich ans Abhaken und Sichern. Funktioniert, wenn die App installiert ist.</span></span>
      <button class="btn ${notifyOn()?'tonal':''}" type="button" data-act="notify">${notifyOn()?'An':'Aus'}</button></label>
-    <label class="check" style="justify-content:space-between"><span>Bild-KI für die Einkaufsliste<br><span class="sub">Erkennt auf Screenshots und Shop-Seiten das echte Produktfoto (statt Logo oder Werbebanner) und schlägt die Kategorie anhand des Bildes vor. Läuft komplett auf dem Handy – einmalig ca. 45 MB laden, deine Bilder verlassen das Handy nicht.</span><span class="sub" id="kiState" style="display:block">${S.ki?(KI.vis?'Bereit.':'Wird bei der nächsten Erkennung geladen.'):''}</span></span>
+    <label class="check" style="justify-content:space-between"><span>Bild-KI für die Einkaufsliste<br><span class="sub">Erkennt auf Screenshots und Shop-Seiten das echte Produktfoto (statt Logo oder Werbebanner) und schlägt die Kategorie anhand des Bildes vor. Läuft komplett auf dem Handy – einmalig ca. 45 MB laden (von den kostenlosen Servern jsDelivr und Hugging Face), deine Bilder verlassen das Handy nicht.</span><span class="sub" id="kiState" style="display:block">${S.ki?(KI.vis?'Bereit.':'Wird bei der nächsten Erkennung geladen.'):''}</span></span>
      <button class="btn ${S.ki?'tonal':''}" type="button" data-act="ki">${S.ki?'An':'Aus'}</button></label>
     <div><div class="label" style="margin:6px 0 4px">Daten</div><p class="sub" style="margin:0 0 10px">${cloud.ref?'Deine Daten werden in deinem Claude-Konto gespeichert und zwischen Handy und PC abgeglichen. Nur du kannst sie sehen.':'Deine Daten werden nur auf diesem Handy gespeichert. Exportiere ab und zu eine Sicherung – zum Beispiel vor einem Handywechsel.'}</p>
      <div class="row"><button class="btn" type="button" data-act="importData">Importieren (Kontoauszug, Excel, Sicherung)</button><button class="btn" type="button" data-act="export">Sicherung exportieren</button><button class="btn" type="button" data-act="csv">CSV für Excel</button></div></div>
@@ -3037,10 +3037,13 @@ function kiLoad(progress){
   if(progress)KI.onp=progress;
   if(!KI.p)KI.p=(async()=>{
     const base=new URL('ki/',location.href).href,T=await import(base+'transformers.min.js');
-    T.env.allowRemoteModels=false;T.env.allowLocalModels=true;T.env.localModelPath=base+'models/';T.env.useBrowserCache=false;
-    T.env.backends.onnx.wasm.wasmPaths=base;T.env.backends.onnx.wasm.numThreads=1;
-    const [proc,vis,lab]=await Promise.all([T.AutoProcessor.from_pretrained('mobileclip_s0'),
-      T.CLIPVisionModelWithProjection.from_pretrained('mobileclip_s0',{dtype:'fp16',device:'wasm',progress_callback:p=>KI.onp&&KI.onp(p)}),
+    // Die großen Dateien (Rechenkern ca. 22 MB, Modell ca. 23 MB) kommen von öffentlichen, kostenlosen Servern – feste Versionen.
+    // Sie werden nur heruntergeladen; deine Bilder werden weiterhin nur auf dem Handy ausgewertet. Danach liegen sie im Browser-Speicher (offline nutzbar).
+    T.env.allowRemoteModels=true;T.env.allowLocalModels=false;T.env.useBrowserCache=true;
+    T.env.backends.onnx.wasm.wasmPaths='https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/';T.env.backends.onnx.wasm.numThreads=1;
+    const MODEL='Xenova/mobileclip_s0',REV='757d59c9c6870a76a4b0306f05f5061bca15c39f';
+    const [proc,vis,lab]=await Promise.all([T.AutoProcessor.from_pretrained(MODEL,{revision:REV}),
+      T.CLIPVisionModelWithProjection.from_pretrained(MODEL,{revision:REV,dtype:'fp16',device:'wasm',progress_callback:p=>KI.onp&&KI.onp(p)}),
       fetch(base+'labels.json').then(r=>{if(!r.ok)throw new Error('labels.json fehlt');return r.json()})]);
     Object.assign(KI,{T,proc,vis,lab});setTimeout(kiBackfill,2000);
   })().catch(e=>{KI.p=null;throw e});
