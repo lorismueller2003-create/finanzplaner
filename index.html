@@ -108,6 +108,12 @@ main{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px
 .chip .w{width:7px;height:7px;border-radius:50%;background:var(--warn)}
 .chip .w.c{background:var(--crit)}
 .chip.add{border-style:dashed;color:var(--accent)}
+.alts{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.alts.col{flex-wrap:wrap;overflow:visible}.alts.col .chip{flex:0 1 auto;text-align:left;border-radius:14px;line-height:1.3}
+.alts .chip .sub{font-size:11px}.chip.on .sub{color:inherit}
+.altimg{flex:none;width:68px;height:68px;padding:0;border-radius:12px;border:2px solid var(--line);background:#fff;overflow:hidden;cursor:pointer}
+.altimg img{width:100%;height:100%;object-fit:contain;display:block}
+.altimg.on{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
 .stick{position:sticky;top:calc(env(safe-area-inset-top,0px) + 61px);z-index:10;background:var(--bg);padding-top:2px;margin-top:-2px}
 
 .mhead{display:grid;grid-template-columns:1fr auto;gap:2px 12px;align-items:end}
@@ -430,7 +436,7 @@ function syncCats(){
   if(!S.cats.includes('Sonstiges'))S.cats.push('Sonstiges');
   CATS=['Einkommen',...S.cats.filter(c=>c!=='Einkommen')];EXP_CATS=CATS.slice(1);
   S.budgets=S.budgets||{};S.goals=S.goals||[];S.learn=S.learn||{};
-  S.wish=S.wish||[];S.wishLearn=S.wishLearn||{};S.wishGroupMeta=S.wishGroupMeta||{};
+  S.wish=S.wish||[];S.wishLearn=S.wishLearn||{};S.wishGroupMeta=S.wishGroupMeta||{};S.shopLearn=S.shopLearn||{};
   if(!Array.isArray(S.wishCats)||!S.wishCats.length)S.wishCats=WISH_CATS.slice();
   for(const w of S.wish)if(w.cat&&!S.wishCats.includes(w.cat))S.wishCats.push(w.cat);
 }
@@ -926,7 +932,7 @@ function renderScanVerdict(){
 }
 ['sName','sPrice','sDate','sCat'].forEach(id=>$('#'+id).addEventListener('input',renderScanVerdict));
 function scanReset(){
-  scan.ctl?.abort();Object.assign(scan,{file:null,thumb:null,busy:false,ctl:null,shop:null,active:false});
+  scan.ctl?.abort();Object.assign(scan,{file:null,thumb:null,busy:false,ctl:null,shop:null,pc:null,active:false});
   scan.token=null;$('#sDone').checked=false;$('#priceAlts').innerHTML='';$('#ocrText').hidden=true;$('#ocrText').open=false;
   $('#scanForm').hidden=true;$('#scanImg').hidden=true;$('#scanStatus').innerHTML='';$('#scanShop').textContent='';
   $('#sName').value='';$('#sPrice').value='';$('#sDate').value=defaultBuyDate();$('#sCat').value='Sonstiges';renderScanVerdict();
@@ -981,8 +987,9 @@ async function handleImage(picked){
     if(r.name)$('#sName').value=r.name;
     if(r.price)$('#sPrice').value=numDE(r.price.toFixed(2));
     $('#sCat').value=r.cat;
-    $('#scanShop').textContent=r.shop||'';
-    $('#priceAlts').innerHTML=r.alts.length?`<span class="sub" style="align-self:center">Andere Preise im Bild:</span>`+r.alts.map(v=>`<button type="button" class="chip" data-price="${v}">${eur(cents(v))}</button>`).join(''):'';
+    $('#scanShop').textContent=r.shop||'';scan.pc=r.prices;scan.shop=r.shop;
+    const others=r.prices.slice(1,6);
+    $('#priceAlts').innerHTML=others.length?`<span class="sub" style="align-self:center">Andere Preise im Bild:</span>`+others.map(p=>`<button type="button" class="chip" data-price="${p.v}">${eur(cents(p.v))}${KIND_TXT[p.kind]?` <span class="sub">${KIND_TXT[p.kind]}</span>`:''}</button>`).join(''):'';
     $('#ocrText').hidden=false;$('#ocrText pre').textContent=(data.text||'').trim();
     setS(r.price?'Erkannt. Prüfe kurz Name, Preis und Kategorie.':'Kein Preis erkannt – bitte selbst eintragen.');
     if(!r.price)$('#sPrice').focus();
@@ -1031,7 +1038,7 @@ async function ocr(file,progress){
       if(analyse(d2).price)data={text:data.text+'\n'+d2.text,lines:(data.lines||[]).concat(d2.lines||[])}}
     finally{await ocrWorker.setParameters({tessedit_pageseg_mode:'3'})}
   }
-  if(canvas&&canvas.height){data.__w=canvas.width;data.__h=canvas.height}  // für den automatischen Bildausschnitt
+  if(canvas&&canvas.height){data.__w=canvas.width;data.__h=canvas.height;data.__color=canvas.__color||null}  // für Layout-Analyse und Bildausschnitt
   return data;
 }
 /* Graustufen, dunkle Screenshots invertieren, kleine Bilder vergrößern – das verbessert die Erkennung deutlich */
@@ -1042,6 +1049,9 @@ async function prepImage(file,maxW){
   scale=Math.min(scale,Math.sqrt(5e6/(W*H)));  // höchstens ca. 5 Megapixel (Speicher auf dem Handy)
   const c=document.createElement('canvas');c.width=Math.round(W*scale);c.height=Math.round(H*scale);
   const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(bmp,0,0,c.width,c.height);
+  // Farbige Kopie (klein) für Layout-Analyse: rote/fette Preise, Produktfoto
+  try{const k=Math.min(1,900/W),cc=document.createElement('canvas');cc.width=Math.round(W*k);cc.height=Math.round(H*k);
+    cc.getContext('2d',{willReadFrequently:true}).drawImage(bmp,0,0,cc.width,cc.height);c.__color=cc}catch(e){}
   const im=x.getImageData(0,0,c.width,c.height),d=im.data;let sum=0;
   for(let i=0;i<d.length;i+=4){const g=.299*d[i]+.587*d[i+1]+.114*d[i+2];d[i]=d[i+1]=d[i+2]=g;sum+=g}
   if(sum/(d.length/4)<110)for(let i=0;i<d.length;i+=4){d[i]=d[i+1]=d[i+2]=255-d[i]}
@@ -1062,41 +1072,90 @@ const CATKW={
 // Kurze Stichwörter nur am Wortanfang, längere auch in zusammengesetzten Wörtern (z. B. „Winterjacke“)
 const kwHit=(text,k)=>k.length>=5?String(text).toLowerCase().includes(k):new RegExp('(^|[^a-zäöüß])'+k.replace(/[.*+?^${}()|[\]\\\/]/g,'\\$&'),'i').test(text);
 const UI_WORDS=/warenkorb|kaufen|bestell|liefer|versand|bewertung|sterne|suche|menü|anmelden|konto|mwst|inkl\.|zurück|teilen|merken|verfügbar|lager|angebot|uvp|statt|preis|größe|farbe|menge|sparen|gutschein|cookie|\d{1,2}:\d{2}|%|€|\beur\b|https?:|www\.|\.de\b|\.com\b/i;
-function analyse(data){
-  const lines=(data.lines&&data.lines.length?data.lines.map(l=>({text:(l.text||'').trim(),h:l.bbox?l.bbox.y1-l.bbox.y0:0,conf:l.confidence}))
-    :String(data.text||'').split('\n').map(t=>({text:t.trim(),h:0,conf:null}))).filter(l=>l.text);
+/* Preis-Arten: nur der aktuelle Preis zählt – UVP, Versand, Grundpreis, Raten usw. werden erkannt und aussortiert */
+const KIND_TXT={main:'',uvp:'UVP/Streichpreis',versand:'Versand',grund:'Grundpreis',rate:'Rate',ab:'ab-Preis',rabatt:'Ersparnis'};
+function priceKind(pre,post){
+  pre=String(pre||'').slice(-40);post=String(post||'').slice(0,24);
+  if(/uvp|statt|vorher|ursprüngl|streich|unverbindl|alter preis|regulär|bisher|zuvor|niedrigster preis der letzten/i.test(pre)||/^\s*(€|eur)?\s*\(?\s*(uvp|statt)/i.test(post))return 'uvp';
+  if(/versand|liefer|porto|shipping|zustell/i.test(pre)||/^\s*(€|eur)?\s*(versand|liefer)/i.test(post))return 'versand';
+  if(/grundpreis|\bje\b|pro\s?(kg|liter|l|stück|100)/i.test(pre)||/^\s*(€|eur)?\s*(\/|pro|je)\s?(\d+\s?)?(kg|l|g|ml|stk|st|stück|m|liter)\b/i.test(post))return 'grund';
+  // „mtl.“ liest die Texterkennung manchmal als „mil.“ oder „mt1.“
+  if(/rate|monatl|mtl|finanzier|im monat|\d+\s?x\s*$|oder\s*(ab\s*)?(nur\s*)?$/i.test(pre)||/^\s*(€|eur)?\s*(\/\s?(monat|mon|mtl)|m[til1][tl1]\.|mtl|monatl|im monat|x\s?\d)/i.test(post))return 'rate';
+  if(/spar|ersparnis|rabatt|gutschein|coupon|−\s*$|-\s*$/i.test(pre)||/^\s*(€|eur)?\s*(gespart|rabatt|günstiger)/i.test(post))return 'rabatt';
+  if(/(^|\s)ab\s*(€\s*)?$/i.test(pre))return 'ab';
+  return 'main';
+}
+/* Schrift im Originalbild prüfen: rote Farbe und Strichstärke (der aktuelle Preis ist oft rot oder fett) */
+function inkStats(cc,b,W){
+  try{const k=cc.width/W,x=Math.max(0,Math.floor(b.x0*k)),y=Math.max(0,Math.floor(b.y0*k)),w=Math.min(cc.width-x,Math.ceil((b.x1-b.x0)*k)),h=Math.min(cc.height-y,Math.ceil((b.y1-b.y0)*k));
+    if(w<3||h<3)return null;
+    const d=cc.getContext('2d',{willReadFrequently:true}).getImageData(x,y,w,h).data,n=w*h,hist=new Uint32Array(16);
+    for(let i=0;i<d.length;i+=4)hist[(.299*d[i]+.587*d[i+1]+.114*d[i+2])>>4]++;
+    const bg=hist.indexOf(Math.max(...hist))*16+8;let ink=0,red=0;
+    for(let i=0;i<d.length;i+=4){const r=d[i],g=d[i+1],bl=d[i+2],L=.299*r+.587*g+.114*bl;if(Math.abs(L-bg)>50||Math.max(r,g,bl)-Math.min(r,g,bl)>90){ink++;if(r>120&&r-g>60&&r-bl>45)red++}}
+    return {dens:ink/n,red:ink>4&&red/ink>.3}}catch(e){return null}
+}
+function analyse(data,shopHint){
+  const H=data.__h||0,W=data.__w||0,phone=H&&W&&H/W>1.5;
+  let lines=(data.lines&&data.lines.length?data.lines.map(l=>({text:(l.text||'').trim(),h:l.bbox?l.bbox.y1-l.bbox.y0:0,conf:l.confidence,b:l.bbox||null}))
+    :String(data.text||'').split('\n').map(t=>({text:t.trim(),h:0,conf:null,b:null}))).filter(l=>l.text);
+  // Statusleiste (Uhrzeit, Akku), Navigationsleiste unten und Adresszeile des Browsers ignorieren
+  if(phone)lines=lines.filter(l=>!l.b||!(l.b.y1/H<.045||l.b.y0/H>.945));
+  lines=lines.filter(l=>!/^(https?:\/\/)?(www\.)?[\w-]+(\.[\w-]+)+(\/\S*)?$/i.test(l.text.replace(/\s/g,'')));
   const text=lines.map(l=>l.text).join('\n');
-  // Preise: Zahl mit Cent und/oder Währung, bewertet nach Umfeld und Schriftgröße
+  const shop=shopHint||SHOPS.find(s=>kwHit(text,s.toLowerCase()))||'';
+  let medD=0;
+  if(data.__color&&W){lines.forEach(l=>{if(l.b&&l.h)l.ink=inkStats(data.__color,l.b,W)});const ds=lines.filter(l=>l.ink).map(l=>l.ink.dens).sort((a,b)=>a-b);medD=ds.length?ds[ds.length>>1]:0}
+  // Preise: Zahl mit Cent und/oder Währung, bewertet nach Art (UVP, Versand …), Schriftgröße, Farbe und Position
   const cands=[],rx=/(€|eur)?\s?(\d{1,3}(?:[.\s]\d{3})+|\d{1,6})\s?[,.]\s?(\d{2}|-{1,2})(?!\d)\s?(€|eur\b|e\b)?/gi;
-  lines.forEach((ln,li)=>{const t=ln.text;let m;rx.lastIndex=0;
-    while((m=rx.exec(t))){
+  const add=(v,kind,ln,li,base)=>{
+    if(!(v>0&&v<100000))return;v=Math.round(v*100)/100;
+    const yRel=ln.b&&H?ln.b.y0/H:li/Math.max(1,lines.length),red=!!(ln.ink&&ln.ink.red),bold=!!(ln.ink&&medD&&ln.ink.dens>medD*1.3);
+    const f=kind+(red?'r':'')+'y'+Math.min(4,Math.floor(yRel*5));
+    const s=base+(P_GOOD.test(ln.text)?2:0)+(kind==='main'?0:kind==='versand'?-9:-7)+(ln.h||0)/12-li*0.02+(red?3:0)+(bold?1.5:0)+learnBoost(shop,'price',f);
+    const o=cands.find(c=>c.v===v);if(o){if(s>o.s)Object.assign(o,{s,kind,f,ln})}else cands.push({v,kind,f,s,ln});
+  };
+  lines.forEach((ln,li)=>{const t=ln.text,ms=[...t.matchAll(rx)];let prevEnd=0;
+    // Steht nur der Preis in der Zeile, gilt die Zeile darüber als Beschreibung (z. B. „Unverbindliche Preisempfehlung:“)
+    const lonely=!/[a-zäöüß]{3}/i.test(t.replace(rx,''));
+    ms.forEach((m,mi)=>{
+      const pre=(lonely&&li>0&&!lines[li-1].text.match(rx)?lines[li-1].text+' ':'')+t.slice(prevEnd,m.index);prevEnd=m.index+m[0].length;
+      const post=t.slice(prevEnd,mi+1<ms.length?ms[mi+1].index:t.length);
       const own=!!(m[1]||m[4]),cur=own||/€|\beur\b/i.test(t);
-      if(!cur&&!/,/.test(m[0]))continue;
-      if(!own&&/\b\d{1,2}\.\d{1,2}\.(\d{2,4})?\b/.test(t))continue;
+      if(!cur&&!/,/.test(m[0]))return;
+      if(!own&&/\b\d{1,2}\.\d{1,2}\.(\d{2,4})?\b/.test(t))return;
       const v=parseInt(m[2].replace(/[.\s]/g,''),10)+(/^\d\d$/.test(m[3])?+m[3]/100:0);
-      if(!(v>0&&v<100000))continue;
-      cands.push({v:Math.round(v*100)/100,s:(own?4:cur?2:0)+(P_GOOD.test(t)?2:0)-(P_BAD.test(t)?6:0)+(ln.h||0)/12-li*0.02});
-    }});
+      add(v,priceKind(pre,post),ln,li,own?4:cur?2:0);
+    })});
   // Hochgestellte Cent-Beträge (z. B. „299⁹⁹ €“) liest die Erkennung oft als „299 99 €“
   lines.forEach((ln,li)=>{const t=ln.text;let m;const rx2=/(?:^|[^\d,.])(\d{1,5})\s(\d{2})\s?(€|eur\b)/gi;
-    while((m=rx2.exec(t))){const v=+m[1]+(+m[2])/100;if(v>0&&!cands.some(c=>c.v===v))cands.push({v,s:3+(P_GOOD.test(t)?2:0)-(P_BAD.test(t)?6:0)+(ln.h||0)/12-li*0.02})}});
+    while((m=rx2.exec(t))){const v=+m[1]+(+m[2])/100;if(!cands.some(c=>c.v===v))add(v,priceKind(t.slice(0,m.index),t.slice(m.index+m[0].length)),ln,li,3)}});
   cands.sort((a,b)=>b.s-a.s);
-  const price=cands.length?cands[0].v:null;
-  const alts=[...new Set(cands.slice(1).map(c=>c.v))].filter(v=>v!==price).slice(0,4);
-  // Produktname: größte Textzeile, die nach Titel aussieht (ggf. zweite Zeile dazu)
-  const pick=lines.map((l,i)=>({...l,i})).filter(l=>{const t=l.text,letters=(t.match(/[a-zäöüß]/gi)||[]).length;
-    return t.length>=5&&letters/t.length>.55&&!UI_WORDS.test(t)&&(l.conf==null||l.conf>55)&&(t.split(/\s+/).length>=2||t.length>=8)});
-  let name='';
-  if(pick.length){
-    const maxH=Math.max(...pick.map(l=>l.h||0)),best=maxH?pick.find(l=>l.h>=maxH*.8):pick[0];
-    name=best.text;const nx=lines[best.i+1];
-    if(nx&&best.h&&Math.abs((nx.h||0)-best.h)<=best.h*.2&&!UI_WORDS.test(nx.text)&&name.length<50)name+=' '+nx.text;
-    name=name.replace(/\s+/g,' ').replace(/^[^0-9A-Za-zÄÖÜäöüß]+|[^0-9A-Za-zÄÖÜäöüß)]+$/g,'').slice(0,70);
+  const price=cands.length?cands[0].v:null,pLine=cands.length?cands[0].ln:null;
+  const alts=cands.slice(1).map(c=>c.v).filter(v=>v!==price).slice(0,4);
+  // Produktname: große Textzeile, möglichst direkt über dem Preis (dort steht er in fast jedem Shop)
+  const pick=lines.map((l,i)=>({...l,i,o:l})).filter(l=>{const t=l.text,letters=(t.match(/[a-zäöüß]/gi)||[]).length;
+    return l.o!==pLine&&t.length>=5&&letters/t.length>.55&&!UI_WORDS.test(t)&&(l.conf==null||l.conf>55)&&(t.split(/\s+/).length>=2||t.length>=8)});
+  const maxH=Math.max(1,...pick.map(l=>l.h||0)),pIdx=lines.indexOf(pLine);
+  for(const l of pick){let s=(l.h||0)/maxH*4+(l.conf?l.conf/50:1),near='';
+    if(pLine&&l.b&&pLine.b&&H){const dy=(pLine.b.y0-l.b.y1)/H;if(dy>=-.005&&dy<.22){s+=3*(1-dy/.22);near='n'}else if(dy<0)s-=1.2}
+    else if(pIdx>=0){const di=pIdx-l.i;if(di>0&&di<=4){s+=2*(1-(di-1)/4);near='n'}}
+    l.f=(l.h&&l.h>=maxH*.8?'g':'k')+near;l.s=s+learnBoost(shop,'name',l.f)}
+  pick.sort((a,b)=>b.s-a.s);
+  const names=[];
+  for(const l of pick){
+    let n=l.text;
+    // Zweizeilige Titel (z. B. Marke + Modell) zusammenfügen
+    for(const j of [l.i-1,l.i+1]){const o=lines[j];if(!o||o===pLine||UI_WORDS.test(o.text)||/\d+[,.]\d\d/.test(o.text))continue;
+      const sameH=l.h&&o.h?Math.abs(o.h-l.h)<=l.h*.35:false,close=l.b&&o.b?Math.min(Math.abs(o.b.y0-l.b.y1),Math.abs(l.b.y0-o.b.y1))<l.h*.9:false;
+      if(sameH&&close&&(n+o.text).length<80)n=j<l.i?o.text+' '+n:n+' '+o.text}
+    n=n.replace(/\s+/g,' ').replace(/^[^0-9A-Za-zÄÖÜäöüß]+|[^0-9A-Za-zÄÖÜäöüß)]+$/g,'').slice(0,80);
+    if(n&&!names.some(x=>x.v===n))names.push({v:n,f:l.f,s:l.s});if(names.length>=4)break;
   }
+  const name=names.length?names[0].v:'';
   let cat='Sonstiges',bs=0;
   for(const [c,kw] of Object.entries(CATKW)){let s=0;for(const k of kw){if(kwHit(name,k))s+=3;else if(kwHit(text,k))s+=1}if(s>bs){bs=s;cat=c}}
-  const shop=SHOPS.find(s=>kwHit(text,s.toLowerCase()))||'';
-  return {name,price,alts,cat,shop};
+  return {name,price,alts,cat,shop,names,prices:cands.slice(0,6).map(({v,kind,f,s})=>({v,kind,f,s})),lines};
 }
 // Feld erst nach dem Einlesen leeren – sonst verliert Android den Zugriff auf die Datei
 $('#scanFile').addEventListener('change',e=>{const f=e.target.files[0];if(f)handleImage(f).finally(()=>{e.target.value=''})});
@@ -1108,6 +1167,8 @@ document.addEventListener('paste',e=>{const f=[...(e.clipboardData?.files||[])].
 function addPurchase(asScenario){
   const a=assess(scanInput());if(!a||a.err)return;
   commit(()=>{
+    // Lernen: Welcher Preis war bei diesem Shop der richtige?
+    if(scan.pc&&scan.shop){const c=scan.pc.find(p=>Math.round(p.v*100)===a.p);if(c)learnPick(scan.shop,'price',c.f)}
     const b={id:uid(),month:a.m,day:a.day,desc:a.inp.name,amount:-a.p/100,cat:a.inp.cat,done:!asScenario&&$('#sDone').checked,src:'scan'};
     if(scan.thumb)b.thumb=scan.thumb;
     if(asScenario){const v={id:'v'+uid(),name:a.inp.name,value:a.p/100,base:0,min:0,max:Math.max(100,Math.ceil(a.p/100*2/50)*50),step:Math.max(1,niceStep(a.p/100/40))};
@@ -1270,6 +1331,8 @@ function settingsSheet(){
     <div class="row"><button class="btn" type="button" data-act="rules">↻ Laufende Buchungen</button><button class="btn" type="button" data-act="cats">Kategorien &amp; Budgets</button></div>
     <label class="check" style="justify-content:space-between"><span>Mitteilung zum Monatsende<br><span class="sub">Erinnert dich ans Abhaken und Sichern. Funktioniert, wenn die App installiert ist.</span></span>
      <button class="btn ${notifyOn()?'tonal':''}" type="button" data-act="notify">${notifyOn()?'An':'Aus'}</button></label>
+    <label class="check" style="justify-content:space-between"><span>Bild-KI für die Einkaufsliste<br><span class="sub">Erkennt auf Screenshots und Shop-Seiten das echte Produktfoto (statt Logo oder Werbebanner) und schlägt die Kategorie anhand des Bildes vor. Läuft komplett auf dem Handy – einmalig ca. 45 MB laden, deine Bilder verlassen das Handy nicht.</span><span class="sub" id="kiState" style="display:block">${S.ki?(KI.vis?'Bereit.':'Wird bei der nächsten Erkennung geladen.'):''}</span></span>
+     <button class="btn ${S.ki?'tonal':''}" type="button" data-act="ki">${S.ki?'An':'Aus'}</button></label>
     <div><div class="label" style="margin:6px 0 4px">Daten</div><p class="sub" style="margin:0 0 10px">${cloud.ref?'Deine Daten werden in deinem Claude-Konto gespeichert und zwischen Handy und PC abgeglichen. Nur du kannst sie sehen.':'Deine Daten werden nur auf diesem Handy gespeichert. Exportiere ab und zu eine Sicherung – zum Beispiel vor einem Handywechsel.'}</p>
      <div class="row"><button class="btn" type="button" data-act="importData">Importieren (Kontoauszug, Excel, Sicherung)</button><button class="btn" type="button" data-act="export">Sicherung exportieren</button><button class="btn" type="button" data-act="csv">CSV für Excel</button></div></div>
     <button class="btn danger" type="button" data-act="reset">Alles löschen und neu anfangen</button>
@@ -1390,6 +1453,12 @@ document.addEventListener('click',async e=>{
     case 'wishAddTo':if(sheet.open)sheet.close();view.wishEditId=null;view.wishPresetGroup=t.dataset.g||'';$('#wishFile').click();break;
     case 'importData':if(sheet.open)sheet.close();importSheet();break;
     case 'notify':await toggleNotify();if(sheet.open){sheet.close();settingsSheet()}break;
+    case 'ki':{const on=!S.ki;S.ki=on;save();t.textContent=on?'An':'Aus';t.classList.toggle('tonal',on);
+      const st=$('#kiState');if(!on){if(st)st.textContent='';break}
+      if(st)st.textContent='Bild-KI wird geladen …';
+      kiLoad(p=>{const e=$('#kiState');if(e&&p&&p.status==='progress'&&p.total)e.textContent=`Bild-KI wird geladen … ${Math.round(p.loaded/p.total*100)} %`})
+        .then(()=>{const e=$('#kiState');if(e)e.textContent='Bereit.';snack('Bild-KI ist bereit')})
+        .catch(err=>{const e=$('#kiState');if(e)e.textContent='Laden fehlgeschlagen: '+String(err&&err.message||err).slice(0,120)});break}
     case 'goalAdd':goalSheet(null);break;
     case 'goalEdit':goalSheet(id);break;
     case 'goalDeposit':depositSheet(id);break;
@@ -1807,7 +1876,7 @@ function parsePlanWorkbook(wb){
         cat:String(col.k!=null?(val(r,col.k)??''):'').trim()||(av>0?'Einkommen':'Sonstiges'),done:isDone(r),ord:bookings.length*10};
       const f=ac&&ac.f?ac.f.replace(/\$/g,'').replace(/\s/g,''):'';let mm;
       if(f&&(mm=f.match(/^(-)?([A-Z]{1,3})(\d+)$/))){
-        // Bezug auf ein Testfeld (z. B. Roadtrip-Kosten) → Szenario-Regler
+        // Bezug auf ein Testfeld (z. B. Urlaubskosten) → Szenario-Regler
         const ref=mm[2]+mm[3],rc=ws[ref];
         if(rc&&typeof rc.v==='number'){let v=vars.get(ref);
           if(!v){const lc=XLSX.utils.decode_cell(ref),lab=ws[XLSX.utils.encode_cell({r:lc.r,c:lc.c-1})],x=Math.abs(rc.v);
@@ -2066,12 +2135,20 @@ const IDB={db:null,
   async all(){const db=await this.open();return new Promise((res,rej)=>{const out={},c=db.transaction('img').objectStore('img').openCursor();c.onsuccess=()=>{const cur=c.result;if(cur){out[cur.key]=cur.value;cur.continue()}else res(out)};c.onerror=()=>rej(c.error)})}};
 const wishImg=new Map();let wishSt=null;
 const safeUrl=u=>/^https?:\/\//i.test(String(u||'').trim())?String(u).trim():'';
-function guessWishCat(name,text){
+function guessWishCatScored(name,text){
   const words=String(name).toLowerCase().split(/[^a-zäöüß0-9]+/).filter(w=>w.length>=4);
-  for(const w of words){const c=S.wishLearn[w];if(c&&S.wishCats.includes(c))return c}
+  for(const w of words){const c=S.wishLearn[w];if(c&&S.wishCats.includes(c))return {cat:c,score:9,learned:true}}
   let best='Sonstiges',bs=0;
   for(const [c,kw] of Object.entries(WISH_KW)){if(!S.wishCats.includes(c))continue;let s=0;for(const k of kw){if(kwHit(name,k))s+=3;else if(kwHit(text,k))s+=1}if(s>bs){bs=s;best=c}}
-  return S.wishCats.includes(best)?best:(S.wishCats.includes('Sonstiges')?'Sonstiges':S.wishCats[0]);
+  return {cat:S.wishCats.includes(best)?best:(S.wishCats.includes('Sonstiges')?'Sonstiges':S.wishCats[0]),score:bs};
+}
+const guessWishCat=(name,text)=>guessWishCatScored(name,text).cat;
+/* Kategorie: gelernte Wörter und klare Stichwörter im Namen zählen zuerst, sonst entscheidet das Bild (Bild-KI) */
+function decideCat(name,text,ki){
+  const g=guessWishCatScored(name,text);
+  if(!ki||g.learned||g.score>=3)return g.cat;
+  if(ki.own||ki.p>.4||!g.score)return ki.p>.25||ki.own?ki.cat:g.cat;
+  return g.cat;
 }
 /* Merkt sich Korrekturen: Wörter aus dem Produktnamen → gewählte Kategorie */
 function learnWishCat(name,cat){
@@ -2155,14 +2232,15 @@ function autoCropFrom(d){
   if(best.b-best.a<0.12)return null;
   return {x:0.02,y:best.a+0.01,w:0.96,h:best.b-best.a-0.02};
 }
-async function cropToDataURL(file,crop,max=480){
-  const bmp=await decodeImage(file),W=imgW(bmp),H=imgH(bmp);
+async function cropCanvas(file,crop,max=480){
+  const bmp=file&&file.getContext?file:await decodeImage(file),W=imgW(bmp),H=imgH(bmp);
   const c0=crop||{x:0,y:0.05,w:1,h:Math.min(0.95,W*1.1/H)};
   const sx=c0.x*W,sy=c0.y*H,sw=Math.max(8,c0.w*W),sh=Math.max(8,c0.h*H),s=Math.min(1,max/Math.max(sw,sh));
-  const c=document.createElement('canvas');c.width=Math.round(sw*s);c.height=Math.round(sh*s);
+  const c=document.createElement('canvas');c.width=Math.max(1,Math.round(sw*s));c.height=Math.max(1,Math.round(sh*s));
   const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(bmp,sx,sy,sw,sh,0,0,c.width,c.height);
-  return c.toDataURL('image/jpeg',.8);
+  return c;
 }
+async function cropToDataURL(file,crop,max=480){return (await cropCanvas(file,crop,max)).toDataURL('image/jpeg',.8)}
 async function thumbFromDataURL(u){
   if(!u)return null;
   try{const img=new Image();img.src=u;await img.decode();const s=Math.min(1,96/Math.max(img.naturalWidth,img.naturalHeight)),c=document.createElement('canvas');
@@ -2177,7 +2255,7 @@ function initCrop(st){
   let p0=null;
   const rel=e=>{const r=img.getBoundingClientRect();return {x:Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)),y:Math.min(1,Math.max(0,(e.clientY-r.top)/r.height))}};
   wrap.onpointerdown=e=>{p0=rel(e);try{wrap.setPointerCapture(e.pointerId)}catch(_){}e.preventDefault()};
-  wrap.onpointermove=e=>{if(!p0)return;const p=rel(e);st.crop={x:Math.min(p0.x,p.x),y:Math.min(p0.y,p.y),w:Math.abs(p.x-p0.x),h:Math.abs(p.y-p0.y)};show()};
+  wrap.onpointermove=e=>{if(!p0)return;const p=rel(e);st.imgF=null;st.emb=null;st.crop={x:Math.min(p0.x,p.x),y:Math.min(p0.y,p.y),w:Math.abs(p.x-p0.x),h:Math.abs(p.y-p0.y)};show()};
   wrap.onpointerup=wrap.onpointercancel=()=>{if(st.crop&&(st.crop.w<0.05||st.crop.h<0.03))st.crop=st.autoCrop||null;p0=null;show()};
 }
 function wishSheet(id,st){
@@ -2192,6 +2270,7 @@ function wishSheet(id,st){
     :`<button class="btn" type="button" data-act="wishImgChange" data-id="${id||''}">Bild hinzufügen (Screenshot)</button>`;
   openSheet(id?'Produkt bearbeiten':'Zur Einkaufsliste',`<div class="stack">${imgBox}
     <div id="wStatus" class="sub" aria-live="polite"></div>
+    <div id="wAlt" class="stack" style="gap:8px" hidden></div>
     <label class="field"><span>Produkt</span><input id="wName" name="name" value="${esc(w.name)}" autocomplete="off"></label>
     <div class="grid2"><label class="field"><span>Preis (€)</span><input id="wPrice" name="price" inputmode="decimal" value="${w.price>0?numDE(w.price):''}" placeholder="0,00"></label>
      <label class="field"><span>Kategorie</span><select id="wCat" name="cat">${S.wishCats.map(c=>`<option ${c===cat?'selected':''}>${esc(c)}</option>`).join('')}<option value="__new">+ Neue Kategorie …</option></select></label></div>
@@ -2221,19 +2300,26 @@ function wishSheet(id,st){
     if(!id&&st&&st.imgUrl&&!(st&&st.file))rec.imgUrl=st.imgUrl;
     const nid=id||'w'+uid(),s=wishSt,learn=(s&&s.guess&&c!==s.guess)||(id&&w.cat!==c);
     (async()=>{
-      if(s&&s.file){try{const u=await cropToDataURL(s.file,s.crop);wishImg.set(nid,u);await IDB.put(nid,u)}catch(e){snack('Das Bild konnte nicht gespeichert werden.')}}
+      let u=null;
+      if(s&&s.file){try{u=await cropToDataURL(s.file,s.crop);wishImg.set(nid,u);await IDB.put(nid,u)}catch(e){snack('Das Bild konnte nicht gespeichert werden.')}}
       commit(()=>{
         if(!S.wishCats.includes(c))S.wishCats.push(c);
         if(learn)learnWishCat(name,c);
+        // Lernen pro Shop: welcher Preis, Name und welches Bild richtig waren
+        if(s&&s.alt){const sh=rec.shop||s.shop,pc=(s.alt.prices||[]).find(p=>Math.round(p.v*100)===Math.round(rec.price*100)),nc=(s.alt.names||[]).find(n=>n.v===name);
+          if(pc)learnPick(sh,'price',pc.f);if(nc)learnPick(sh,'name',nc.f);if(s.imgF)learnPick(sh,'img',s.imgF)}
         if(id)Object.assign(S.wish.find(x=>x.id===id)||{},rec);else S.wish.push({id:nid,...rec,added:new Date().toISOString()});
       },id?'Gespeichert':`„${name}“ steht auf der Einkaufsliste`);
       if(s&&s.url)setTimeout(()=>URL.revokeObjectURL(s.url),2000);
+      // Bild-KI: „Fingerabdruck“ des Produktbilds merken – damit lernt die App deine eigenen Kategorien
+      if(u&&kiOn()){try{const e=s.emb||await kiEmbed(await (await fetch(u)).blob()),it=S.wish.find(x=>x.id===nid);if(it){it.emb=packEmb(e);save()}}catch(e){}}
     })();
    });
   form.elements.cat.onchange=()=>{$('#wNewWrap').hidden=form.elements.cat.value!=='__new';if(!$('#wNewWrap').hidden)$('#wNew').focus()};
   form.elements.groupSel.onchange=()=>{$('#wGroupNewWrap').hidden=form.elements.groupSel.value!=='__new';if(!$('#wGroupNewWrap').hidden)$('#wGroupNew').focus()};
   if(st&&st.file)initCrop(st);
   if(st&&st.status)$('#wStatus').innerHTML=st.status;
+  if(st&&st.alt)renderAlt(st);
 }
 async function handleWishImage(picked,editId){
   let file;
@@ -2253,13 +2339,30 @@ async function handleWishImage(picked,editId){
   try{
     const data=await ocr(file,spin);
     if(wishSt!==st||!sheet.open)return;
-    const r=analyse(data),f=form.elements;
+    const r=analyse(data),f=form.elements;st.shop=r.shop;
     if(r.name&&!f.name.value)f.name.value=r.name;
     if(r.price&&!f.price.value)f.price.value=numDE(r.price.toFixed(2));
     if(r.shop&&!f.shop.value)f.shop.value=r.shop;
-    st.guess=guessWishCat(r.name||'',data.text||'');f.cat.value=st.guess;
-    const ac=autoCropFrom(data);if(ac&&!st.crop){st.crop=st.autoCrop=ac;st.show&&st.show()}
-    status(r.price?`Erkannt: Kategorie „${esc(st.guess)}“. Prüfe kurz die Angaben – den Bildausschnitt kannst du mit dem Finger anpassen.`:'Kein Preis erkannt – bitte selbst eintragen.');
+    // Produktfoto: Bereiche mit Bildinhalt (Farbe, Struktur, kein Text) – dazu der bisherige „größte textfreie Bereich“
+    let crops=photoCrops(data.__color,r.lines,data.__w,data.__h).map((c,i)=>({crop:c,f:'v'+i,s:i?1:2}));
+    const ac=autoCropFrom(data);if(ac)crops.push({crop:ac,f:'t',s:.5});
+    crops=crops.filter((c,i)=>!crops.slice(0,i).some(o=>iou(o.crop,c.crop)>.75));
+    crops.forEach(c=>c.s+=learnBoost(r.shop,'img',c.f));
+    let ki=null,kiMsg='';
+    if(kiOn()&&crops.length){
+      try{spin('Bild-KI sucht das Produktfoto …');
+        for(const c of crops.slice(0,4)){c.e=await kiEmbed(await cropCanvas(file,c.crop,320));c.p=kiProduct(c.e);c.s+=c.p*6}
+        if(wishSt!==st||!sheet.open)return;
+      }catch(e){kiMsg=' (Bild-KI nicht verfügbar)'}}
+    crops.sort((a,b)=>b.s-a.s);
+    if(crops[0]&&!st.crop){st.crop=st.autoCrop=crops[0].crop;st.imgF=crops[0].f;st.emb=crops[0].e||null;st.show&&st.show()}
+    if(crops[0]&&crops[0].e)ki=kiCat(crops[0].e);
+    st.guess=decideCat(r.name||'',data.text||'',ki);f.cat.value=st.guess;
+    crops=crops.slice(0,4);for(const c of crops)try{c.thumb=await cropToDataURL(file,c.crop,140)}catch(e){}
+    if(wishSt!==st||!sheet.open)return;
+    st.alt={names:r.names,prices:r.prices,crops};
+    renderAlt(st);
+    status((r.price?`Erkannt: Kategorie „${esc(st.guess)}“${ki&&st.guess===ki.cat&&st.guess!==guessWishCat(r.name||'',data.text||'')?' (per Bild)':''}. Prüfe kurz die Angaben – den Bildausschnitt kannst du mit dem Finger anpassen.`:'Kein Preis erkannt – bitte selbst eintragen.')+kiMsg);
   }catch(e){status('Die Erkennung hat nicht funktioniert – trag die Angaben bitte selbst ein.')}
 }
 /* Alle Bilder eines Produkts: Hauptbild + weitere Bilder */
@@ -2406,30 +2509,195 @@ function wishAddChooser(){
     <p class="sub" style="margin:0">Tipp: In der Shop-App oder in Chrome auf „Teilen“ tippen und „Finanzplaner“ wählen – dann landet der Link direkt hier (nur bei installierter App).</p></div>`,'',()=>true);
 }
 
+/* ---------- Produkterkennung: Kandidaten statt „erster Treffer“, Lernen pro Shop ----------
+   Für Bild, Preis und Name werden mehrere Kandidaten gesammelt und bewertet. Was du beim Speichern behältst,
+   merkt sich die App pro Shop (z. B. „bei Zalando ist der rote Preis der richtige“) und bewertet es künftig höher. */
+const shopKey=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+function learnBoost(shop,kind,f){const L=S.shopLearn&&S.shopLearn[shopKey(shop)],n=(L&&L[kind]&&L[kind][f])||0;return Math.min(6,n*2)}
+function learnPick(shop,kind,f){
+  const k=shopKey(shop);if(!k||!f)return;S.shopLearn=S.shopLearn||{};
+  const L=S.shopLearn[k]=S.shopLearn[k]||{},m=L[kind]=L[kind]||{};
+  for(const x in m)if(x!==f){m[x]=Math.max(0,m[x]-.5);if(!m[x])delete m[x]}
+  m[f]=Math.min(5,(m[f]||0)+1);
+}
+const iou=(a,b)=>{const x=Math.max(0,Math.min(a.x+a.w,b.x+b.w)-Math.max(a.x,b.x)),y=Math.max(0,Math.min(a.y+a.h,b.y+b.h)-Math.max(a.y,b.y)),i=x*y;return i/((a.w*a.h+b.w*b.h-i)||1)};
+
+/* Produktfoto im Screenshot finden: Kacheln mit Bildinhalt (Helligkeitsschwankung, Farbe, Abweichung vom Seitenhintergrund) ohne Text */
+function photoCrops(cc,lines,W,H){
+  if(!cc||!W||!H)return [];
+  try{
+    const cw=cc.width,ch=cc.height,k=cw/W,G=Math.max(6,Math.round(cw/60)),cols=Math.floor(cw/G),rows=Math.floor(ch/G);
+    if(cols<4||rows<4)return [];
+    const d=cc.getContext('2d',{willReadFrequently:true}).getImageData(0,0,cw,ch).data,N=cols*rows,txt=new Uint8Array(N);
+    for(const l of lines||[]){const b=l.b;if(!b)continue;
+      const c0=Math.max(0,Math.floor(b.x0*k/G)),c1=Math.min(cols-1,Math.floor(b.x1*k/G)),r0=Math.max(0,Math.floor(b.y0*k/G)),r1=Math.min(rows-1,Math.floor(b.y1*k/G));
+      for(let r=r0;r<=r1;r++)for(let c=c0;c<=c1;c++)txt[r*cols+c]=1}
+    const mean=new Float32Array(N),sd=new Float32Array(N),chr=new Float32Array(N),hist=new Uint32Array(32);
+    for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){let s=0,s2=0,cs=0,n=0;
+      for(let y=r*G;y<(r+1)*G;y+=2)for(let x=c*G;x<(c+1)*G;x+=2){const i=(y*cw+x)*4,R=d[i],Gn=d[i+1],B=d[i+2],L=.299*R+.587*Gn+.114*B;s+=L;s2+=L*L;cs+=Math.max(R,Gn,B)-Math.min(R,Gn,B);n++}
+      const j=r*cols+c,m=s/n;mean[j]=m;sd[j]=Math.sqrt(Math.max(0,s2/n-m*m));chr[j]=cs/n;hist[Math.min(31,m>>3)]++}
+    const hb=hist.indexOf(Math.max(...hist));let bs=0,bn=0;for(let j=0;j<N;j++)if(Math.min(31,mean[j]>>3)===hb){bs+=mean[j];bn++}const bg=bn?bs/bn:hb*8+4,phone=H/W>1.5,top=phone?Math.floor(rows*.06):0,bot=phone?Math.ceil(rows*.93):rows;
+    const img=new Uint8Array(N);
+    for(let j=0;j<N;j++)if(!txt[j]&&(sd[j]>6||chr[j]>20||Math.abs(mean[j]-bg)>5))img[j]=1;  // auch hellgraue Foto-Hintergründe (z. B. Zalando)
+    const rs=[];for(let r=0;r<rows;r++){let n=0;if(r>=top&&r<bot)for(let c=0;c<cols;c++)n+=img[r*cols+c];rs.push(n/cols)}
+    // Zusammenhängende Zeilen mit viel Bildinhalt (kleine Lücken erlaubt)
+    const runs=[];let a=-1,gap=0;
+    for(let r=0;r<=rows;r++){const on=r<rows&&rs[r]>.12;
+      if(on){if(a<0)a=r;gap=0}else if(a>=0){gap++;if(gap>3||r>=rows){runs.push([a,r-gap]);a=-1;gap=0}}}
+    // Bereiche zusätzlich dort teilen, wo sich die Hintergrundfarbe sprunghaft ändert (z. B. roter Werbebanner direkt über dem Foto)
+    const rowCol=r=>{let R=0,Gs=0,B=0,n=0;for(let c=0;c<cols;c++){if(txt[r*cols+c])continue;const y=r*G+(G>>1),x=c*G+(G>>1),i=(y*cw+x)*4;R+=d[i];Gs+=d[i+1];B+=d[i+2];n++}return n?[R/n,Gs/n,B/n]:null};
+    for(const [r0,r1] of runs.slice()){let s=r0,prev=rowCol(r0),cut=false;
+      for(let r=r0+1;r<=r1;r++){const cur=rowCol(r);if(prev&&cur&&Math.hypot(cur[0]-prev[0],cur[1]-prev[1],cur[2]-prev[2])>45){if(r-1>=s)runs.push([s,r-1,1]);s=r;cut=true}if(cur)prev=cur}
+      if(cut){runs.push([s,r1,1]);runs.find(x=>x[0]===r0&&x[1]===r1&&!x[2]).merged=true}}
+    const out=[];
+    for(const run of runs){const [r0,r1]=run;if(r1-r0+1<rows*.07)continue;
+      let c0=cols,c1=-1,wgt=0;
+      for(let c=0;c<cols;c++){let n=0;for(let r=r0;r<=r1;r++)n+=img[r*cols+c];if(n/(r1-r0+1)>.12){c0=Math.min(c0,c);c1=Math.max(c1,c)}}
+      if(c1<c0)continue;for(let r=r0;r<=r1;r++)wgt+=rs[r];
+      const p=.012,x=Math.max(0,c0*G/cw-p),y=Math.max(0,r0*G/ch-p),x2=Math.min(1,(c1+1)*G/cw+p),y2=Math.min(1,(r1+1)*G/ch+p);
+      const ar=(x2-x)*cw/((y2-y)*ch);  // sehr breite, flache Streifen sind meist Banner oder Buttons
+      out.push({x,y,w:x2-x,h:y2-y,wgt:wgt*(ar>3.2?.3:1)*(run.merged?.5:1)});
+    }
+    return out.sort((a,b)=>b.wgt-a.wgt).filter((o,i,arr)=>!arr.slice(0,i).some(p=>iou(p,o)>.85)).slice(0,4).map(({x,y,w,h})=>({x,y,w,h}));
+  }catch(e){return []}
+}
+
+/* ---------- Bild-KI (MobileCLIP von Apple, läuft komplett im Browser) ----------
+   Alle Dateien liegen im Ordner „ki“ der App selbst – es werden keine Bilder an fremde Server geschickt.
+   Die Texte zum Vergleich („Produktfoto“, „Logo“, „Parfümflasche“ …) sind vorab berechnet (ki/labels.json). */
+const KI={p:null,T:null,proc:null,vis:null,lab:null,onp:null};
+const kiOn=()=>!!S.ki;
+function kiLoad(progress){
+  if(progress)KI.onp=progress;
+  if(!KI.p)KI.p=(async()=>{
+    const base=new URL('ki/',location.href).href,T=await import(base+'transformers.min.js');
+    T.env.allowRemoteModels=false;T.env.allowLocalModels=true;T.env.localModelPath=base+'models/';T.env.useBrowserCache=false;
+    T.env.backends.onnx.wasm.wasmPaths=base;T.env.backends.onnx.wasm.numThreads=1;
+    const [proc,vis,lab]=await Promise.all([T.AutoProcessor.from_pretrained('mobileclip_s0'),
+      T.CLIPVisionModelWithProjection.from_pretrained('mobileclip_s0',{dtype:'fp16',device:'wasm',progress_callback:p=>KI.onp&&KI.onp(p)}),
+      fetch(base+'labels.json').then(r=>{if(!r.ok)throw new Error('labels.json fehlt');return r.json()})]);
+    Object.assign(KI,{T,proc,vis,lab});setTimeout(kiBackfill,2000);
+  })().catch(e=>{KI.p=null;throw e});
+  return KI.p;
+}
+async function kiEmbed(src){
+  await kiLoad();
+  const blob=src&&src.getContext?await new Promise(r=>src.toBlob(r,'image/jpeg',.9)):src;
+  const img=await KI.T.RawImage.fromBlob(blob),inp=await KI.proc(img),{image_embeds}=await KI.vis(inp);
+  return Float32Array.from(image_embeds.normalize().data);
+}
+const dotv=(a,b)=>{let s=0;for(let i=0;i<a.length;i++)s+=a[i]*b[i];return s};
+const softmax100=xs=>{const m=Math.max(...xs),e=xs.map(x=>Math.exp(100*(x-m))),s=e.reduce((a,b)=>a+b,0);return e.map(x=>x/s)};
+// Wahrscheinlichkeit „echtes Produktfoto“ (statt Logo, Banner, Text-Screenshot)
+function kiProduct(e){const ks=Object.keys(KI.lab.kinds),p=softmax100(ks.map(k=>dotv(e,KI.lab.kinds[k])));return p[ks.indexOf('product')]||0}
+// Kategorie per Bild: zuerst ähnliche eigene Produkte (lernt deine Kategorien), sonst die Standard-Kategorien
+function kiCat(e){
+  let own=null;
+  for(const w of S.wish){if(!w.emb||!S.wishCats.includes(w.cat))continue;const s=dotv(e,unpackEmb(w.emb));if(!own||s>own.s)own={cat:w.cat,s}}
+  if(own&&own.s>.8)return {cat:own.cat,p:1,own:true};
+  const cs=Object.keys(KI.lab.cats).filter(c=>S.wishCats.includes(c));if(!cs.length)return null;
+  const p=softmax100(cs.map(c=>dotv(e,KI.lab.cats[c]))),i=p.indexOf(Math.max(...p));
+  return {cat:cs[i],p:p[i]};
+}
+// „Fingerabdruck“ eines Bildes platzsparend speichern (512 Zahlen → ca. 700 Zeichen)
+function packEmb(e){let m=0;for(const x of e)m=Math.max(m,Math.abs(x));m=m||1;let s='';for(const x of e)s+=String.fromCharCode(Math.round(x/m*127)&255);return btoa(s)}
+const embCache=new Map();
+function unpackEmb(str){let v=embCache.get(str);if(v)return v;const bin=atob(str);v=new Float32Array(bin.length);let n=0;
+  for(let i=0;i<bin.length;i++){const x=bin.charCodeAt(i);v[i]=x>127?x-256:x;n+=v[i]*v[i]}n=Math.sqrt(n)||1;for(let i=0;i<v.length;i++)v[i]/=n;embCache.set(str,v);return v}
+// Produkte, die schon vor dem Einschalten der Bild-KI gespeichert wurden, nachträglich erfassen
+async function kiBackfill(){
+  let n=0;
+  for(const w of S.wish){if(w.emb)continue;const u=wishImg.get(w.id);if(!u)continue;
+    try{w.emb=packEmb(await kiEmbed(await (await fetch(u)).blob()));n++}catch(e){break}}
+  if(n)save();
+}
+
+/* Auswahl unter dem Formular: andere Bilder, Preise und Namen zum Antippen */
+function renderAlt(st){
+  const el=$('#wAlt');if(!el||wishSt!==st||!st.alt)return;
+  const a=st.alt,f=form.elements,cur=parseNum(f.price.value);
+  const prices=(a.prices||[]).filter((p,i,arr)=>arr.findIndex(q=>q.v===p.v)===i).slice(0,6),names=(a.names||[]).slice(0,4),imgs=a.imgs||[],crops=(a.crops||[]).filter(c=>c.thumb);
+  let h='';
+  if(imgs.length>1)h+=`<div><div class="label" style="margin-bottom:4px">Anderes Bild?</div><div class="alts">${imgs.map((m,i)=>`<button type="button" class="altimg ${st.file===m.file?'on':''}" data-alt="img" data-i="${i}" aria-label="Bild ${i+1}"><img src="${m.url}" alt=""></button>`).join('')}</div></div>`;
+  else if(crops.length>1)h+=`<div><div class="label" style="margin-bottom:4px">Anderer Bildausschnitt?</div><div class="alts">${crops.map((c,i)=>`<button type="button" class="altimg ${st.crop===c.crop?'on':''}" data-alt="crop" data-i="${i}" aria-label="Ausschnitt ${i+1}"><img src="${c.thumb}" alt=""></button>`).join('')}</div></div>`;
+  if(prices.length>1)h+=`<div><div class="label" style="margin-bottom:4px">Anderer Preis?</div><div class="alts">${prices.map((p,i)=>`<button type="button" class="chip ${Math.round(p.v*100)===Math.round(cur*100)?'on':''}" data-alt="price" data-i="${i}">${eur(cents(p.v))}${KIND_TXT[p.kind]?` <span class="sub">${KIND_TXT[p.kind]}</span>`:''}</button>`).join('')}</div></div>`;
+  if(names.length>1)h+=`<div><div class="label" style="margin-bottom:4px">Anderer Name?</div><div class="alts col">${names.map((n,i)=>`<button type="button" class="chip ${n.v===f.name.value?'on':''}" data-alt="name" data-i="${i}">${esc(n.v)}</button>`).join('')}</div></div>`;
+  el.innerHTML=h;el.hidden=!h;
+  el.onclick=e=>{const b=e.target.closest('[data-alt]');if(!b)return;const i=+b.dataset.i,k=b.dataset.alt;
+    if(k==='price')f.price.value=numDE(prices[i].v.toFixed(2));
+    else if(k==='name')f.name.value=names[i].v;
+    else if(k==='img'){const m=imgs[i];Object.assign(st,{file:m.file,url:m.url,imgF:m.f,emb:m.e||null,crop:{x:0,y:0,w:1,h:1}});st.autoCrop=st.crop;const im=$('#wCropImg');if(im)im.src=m.url}
+    else if(k==='crop'){const c=crops[i];Object.assign(st,{crop:c.crop,autoCrop:c.crop,imgF:c.f,emb:c.e||null});st.show&&st.show()}
+    renderAlt(st)};
+}
+
 /* ---------- Produkt per Weblink importieren ----------
-   Browser dürfen fremde Seiten nicht direkt lesen. Deshalb wird der Link über zwei öffentliche Dienste ausgelesen:
-   Jina Reader (Seitentext inkl. Preis, wenn der Shop es zulässt) und Microlink (Name und Produktbild, wenige Abrufe pro Tag frei). */
+   Browser dürfen fremde Seiten nicht direkt lesen. Deshalb wird der Link über kostenlose öffentliche Dienste ausgelesen:
+   Jina Reader (Seiteninhalt) und nur falls nötig Microlink (wenige Abrufe pro Tag frei).
+   Reihenfolge: strukturierte Produktdaten (wie sie Google nutzt) → Shop-Anpassungen → sichtbarer Seitentext. */
 const extractUrl=s=>{const m=String(s||'').match(/https?:\/\/[^\s<>"']+/i);return m?m[0].replace(/[).,;]+$/,''):''};
 const SHOP_NAMES={amazon:'Amazon',zalando:'Zalando',otto:'Otto',douglas:'Douglas',mediamarkt:'MediaMarkt',saturn:'Saturn',ebay:'eBay',ikea:'IKEA',aboutyou:'About You',hm:'H&M',nike:'Nike',adidas:'Adidas',apple:'Apple',decathlon:'Decathlon',thalia:'Thalia',galaxus:'Galaxus',shein:'Shein',temu:'Temu',zara:'Zara',snipes:'Snipes',notino:'Notino',flaconi:'Flaconi',dm:'dm',rossmann:'Rossmann',tchibo:'Tchibo',kleinanzeigen:'Kleinanzeigen',idealo:'idealo'};
 function shopFromUrl(u){try{let h=new URL(u).hostname.replace(/^www\.|^m\./,'');if(/amzn\./.test(h))return 'Amazon';const base=h.split('.').slice(-2,-1)[0]||h;return SHOP_NAMES[base.replace(/-/g,'')]||base.charAt(0).toUpperCase()+base.slice(1)}catch(e){return ''}}
 const cleanTitle=t=>clean(String(t||'').replace(/&amp;/g,'&').replace(/&quot;/g,'"').replace(/&#39;|&#x27;/g,"'")
-  .replace(/\s*[|–—-]\s*(online kaufen|jetzt kaufen|kaufen|bestellen).*$/i,'').replace(/\s*[:|–—-]\s*(amazon|zalando|otto|douglas|about you|mediamarkt|saturn|ebay|ikea)\b[^]*$/i,'').replace(/^(amazon\.de|zalando)\s*[:|-]\s*/i,'')).slice(0,90);
-/* Strukturierte Produktdaten (wie sie auch Google nutzt): JSON-LD „Product“ und og:/product:-Meta-Angaben */
-function parseProductHtml(html){
+  .replace(/\s*[|–—-]\s*(online kaufen|jetzt kaufen|kaufen|bestellen).*$/i,'').replace(/\s*[|–—]\s*[^|–—]*(online[- ]?shop|shop online)[^|–—]*$/i,'').replace(/\s*[:|–—-]\s*(amazon|zalando|otto|douglas|about you|mediamarkt|saturn|ebay|ikea|notino|flaconi|h&m)\b[^]*$/i,'').replace(/^(amazon\.de|zalando)\s*[:|-]\s*/i,'')).slice(0,90);
+const genericTitle=(n,shop)=>!n||n.length<6||shopKey(n).replace(/(de|com)$/,'')===shopKey(shop)||/^(amazon|startseite|home|willkommen|page not found|404|access denied|zugriff|robot|captcha|just a moment|attention required|product gallery|online-shop)/i.test(n)||/online[- ]?shop|shop online|official site|offizielle[rn]? (online)?shop|seite nicht gefunden/i.test(n);
+// Produktname aus der Adresse (z. B. …/nike-air-max-90-sneaker-ni112o0xx-q11.html) – nur als letzte Möglichkeit
+function slugName(seg){
+  let w=decodeURIComponent(String(seg||'')).replace(/\.(html?|php|aspx?)$/i,'').split(/[-_+]+/).filter(Boolean);
+  while(w.length&&(/\d/.test(w.at(-1))&&/[a-z]/i.test(w.at(-1))||/^\d{4,}$/.test(w.at(-1))||/^[a-z]$/i.test(w.at(-1))))w.pop();
+  w=w.filter(x=>!(/\d/.test(x)&&/[a-z]/i.test(x)&&x.length>=6)&&!/^\d{6,}$/.test(x));
+  if(w.length<2||w.join('').length<8)return '';
+  return w.join(' ').replace(/(^|\s)\S/g,c=>c.toUpperCase()).slice(0,80);
+}
+function urlName(u){try{let best='';for(const seg of new URL(u).pathname.split('/')){const n=slugName(seg);if(n.length>best.length)best=n}return best}catch(e){return ''}}
+const ldNum=v=>typeof v==='number'?v:/^\s*\d+(\.\d+)?\s*$/.test(String(v??''))?parseFloat(v):numAny(v);
+/* Shop-Anpassungen: wo die großen Shops ihre Produktbilder ablegen (Bilder von dort zählen mehr) und Sonderfälle */
+const SHOP_ADAPT={
+  amazon:{img:/media-amazon\.com\/images\/I\/|images-amazon\.com\/images\/I\//,
+    sel:'#productTitle, #landingImage, #imgTagWrapperId img, #corePrice_feature_div, #corePriceDisplay_desktop_feature_div',
+    fromUrl(u,A){const a=u.match(/\/(?:dp|gp\/product|gp\/aw\/d|exec\/obidos\/asin)\/([A-Z0-9]{10})/i);
+      if(a)A.img(`https://images-na.ssl-images-amazon.com/images/P/${a[1].toUpperCase()}.01.L.jpg`,'asin',4);
+      const s=u.match(/amazon\.[a-z.]+\/([^/?#]+)\/(?:dp|gp)\//i);if(s){const n=slugName(s[1]);if(n)A.name(n,'url',2)}},
+    parse(h,A){const t=h.match(/id=["']productTitle["'][^>]*>([^<]+)/i);if(t)A.name(t[1],'shop',7);
+      const hi=h.match(/data-old-hires=["']([^"']+)/i);if(hi)A.img(hi[1],'shop',7);
+      const dy=h.match(/data-a-dynamic-image=["']\{&quot;(https[^&]+)&quot;/i);if(dy)A.img(dy[1],'shop',6);
+      const p=h.match(/class=["']a-offscreen["'][^>]*>\s*([\d.,]+)\s*(?:&nbsp;)?€/i);if(p)A.price(numAny(p[1]),'main','shop',6)}},
+  zalando:{img:/img\d*\.ztat\.net\/article\//},
+  otto:{img:/i\.otto\.de\/i\/otto\//},
+  douglas:{img:/media\.douglas\.de\//},
+  mediamarkt:{img:/assets\.mmsrg\.com\/isr\//},
+  saturn:{img:/assets\.mmsrg\.com\/isr\//},
+  aboutyou:{img:/cdn\.aboutstatic\.com\/file\//},
+  hm:{img:/image\.hm\.com\/assets\/|lp2\.hm\.com\/hmgoepprod/},
+  notino:{img:/cdn\.notinoimg\.com\/(detail_main|list|social)/},
+  flaconi:{img:/flaconi\.(de|net)\/.*\.(jpe?g|png|webp)/i},
+};
+/* Strukturierte Produktdaten: JSON-LD „Product“, Mikrodaten (itemprop) und og:/product:-Meta-Angaben */
+function parseProductHtml(html,A){
   const meta=n=>{const m=html.match(new RegExp('<meta[^>]+(?:property|name|itemprop)=["\']'+n+'["\'][^>]*content=["\']([^"\']*)','i'))||html.match(new RegExp('<meta[^>]+content=["\']([^"\']*)["\'][^>]*(?:property|name|itemprop)=["\']'+n+'["\']','i'));return m?m[1]:''};
-  const out={name:meta('og:title')||(html.match(/<title[^>]*>([^<]*)/i)||[])[1]||'',image:meta('og:image')||meta('og:image:secure_url'),
-    price:numAny(meta('product:price:amount')||meta('og:price:amount')||meta('price'))||null,text:meta('og:description')||meta('description')};
+  if(meta('og:title'))A.name(meta('og:title'),'og',4);
+  const tt=(html.match(/<title[^>]*>([^<]*)/i)||[])[1];if(tt)A.name(tt,'title',3);
+  for(const n of ['og:image','og:image:secure_url','twitter:image','twitter:image:src'])if(meta(n))A.img(meta(n),'og',4);
+  const lr=html.match(/<link[^>]+rel=["']image_src["'][^>]*href=["']([^"']+)/i);if(lr)A.img(lr[1],'og',3);
+  const mp=ldNum(meta('product:price:amount')||meta('og:price:amount'));if(mp>0)A.price(mp,'main','meta',5);
+  for(const m of html.matchAll(/itemprop=["']price["'][^>]*content=["']([^"']+)|content=["']([^"']+)["'][^>]*itemprop=["']price["']/gi)){const v=ldNum(m[1]||m[2]);if(v>0)A.price(v,'main','micro',5)}
+  for(const m of html.matchAll(/itemprop=["']image["'][^>]*(?:content|src|href)=["']([^"']+)/gi))A.img(m[1],'micro',5);
+  A.text(meta('og:description')||meta('description'));
   const find=o=>{if(!o||typeof o!=='object')return null;if(Array.isArray(o)){for(const x of o){const r=find(x);if(r)return r}return null}
     const t=[].concat(o['@type']||[]);if(t.some(x=>/^(Product|ProductGroup)$/i.test(x)))return o;return find(o['@graph'])};
   for(const m of html.matchAll(/<script[^>]+application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi)){
     let p;try{p=find(JSON.parse(m[1].trim()))}catch(e){continue}if(!p)continue;
-    if(p.name)out.name=p.name;
-    const img=[].concat(p.image||[])[0];if(img)out.image=typeof img==='string'?img:(img.url||img.contentUrl||out.image);
-    const offers=[].concat(p.offers||(p.hasVariant&&[].concat(p.hasVariant).map(v=>v.offers))||[]).flat().filter(Boolean);
-    for(const o of offers){const v=numAny(o.price??o.lowPrice??(o.priceSpecification&&o.priceSpecification.price));if(v>0){out.price=v;break}}
-    out.text=[out.text,p.description,p.category,p.brand&&p.brand.name].filter(Boolean).join(' ');break;
+    if(p.name)A.name(p.name,'ld',6);
+    const imgs=[].concat(p.image||[],...[].concat(p.hasVariant||[]).map(v=>[].concat(v&&v.image||[]).slice(0,1)));
+    imgs.slice(0,8).forEach((im,i)=>{const u=typeof im==='string'?im:(im&&(im.url||im.contentUrl));if(u)A.img(u,'ld',6-i*.2)});
+    const offers=[].concat(p.offers||[],...[].concat(p.hasVariant||[]).map(v=>v&&v.offers||[])).flatMap(o=>o&&o['@type']==='AggregateOffer'&&o.offers?[o,...[].concat(o.offers)]:[o]).filter(Boolean);
+    for(const o of offers){
+      const v=ldNum(o.price??o.lowPrice);if(v>0)A.price(v,o.price==null&&o.lowPrice!=null?'ab':'main','ld',6);
+      for(const ps of [].concat(o.priceSpecification||[])){const pv=ldNum(ps&&ps.price);if(pv>0)A.price(pv,/ListPrice|Strikethrough|MSRP|SRP/i.test(ps.priceType||'')?'uvp':'main','ld',5)}
+    }
+    A.text([p.description,p.category,p.brand&&(p.brand.name||p.brand)].filter(x=>typeof x==='string').join(' '));
+    break;
   }
-  return out;
 }
 const withTimeout=(p,ms)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('Zeitüberschreitung')),ms))]);
 async function fetchImageFile(u){
@@ -2439,58 +2707,95 @@ async function fetchImageFile(u){
   }
   return null;
 }
-async function fetchProduct(url,step){
-  const res={link:url,shop:shopFromUrl(url)};
-  const blocked=t=>/access denied|tut uns leid|captcha|robot check|are you a human|403 forbidden|enable javascript|zugriff verweigert/i.test(String(t).slice(0,3000));
-  // 1) Jina Reader, nur Kopfbereich + Produktdaten (klein, ca. 100 KB): Name, Originalbild, Preis
+async function fetchProduct(url,step,shareTitle){
+  const res={link:url,shop:shopFromUrl(url),names:[],prices:[],imgs:[],text:''},cand=[];
+  const ad=SHOP_ADAPT[shopKey(res.shop)]||{};
+  const words=()=>{const n=res.names.slice().sort((a,b)=>b.s-a.s)[0];return n?n.v.toLowerCase().split(/[^a-zäöüß0-9]+/).filter(w=>w.length>=4):[]};
+  const A={
+    name(n,src,w){n=cleanTitle(n);if(genericTitle(n,res.shop))return;const s=w+learnBoost(res.shop,'name',src),o=res.names.find(x=>x.v.toLowerCase()===n.toLowerCase());
+      if(o){if(s>o.s)Object.assign(o,{f:src,s})}else res.names.push({v:n,f:src,s})},
+    img(u,src,w){try{u=new URL(String(u).replace(/&amp;/g,'&').trim(),url).href}catch(e){return}
+      if(!/^https?:/i.test(u))return;
+      const cdn=!!(ad.img&&ad.img.test(u)),f=src+(cdn?':cdn':'');let s=w+(cdn?3:0);
+      if(!cdn&&/logo|icon|sprite|favicon|banner|payment|flag|badge|placeholder|pixel|tracking|avatar|rating|stars?[-_.]|\.svg(\?|$)|\.gif(\?|$)/i.test(u))s-=6;
+      s+=learnBoost(res.shop,'img',f);
+      const o=cand.find(c=>c.u===u);if(o){if(s>o.s)Object.assign(o,{f,s:s+.5})}else cand.push({u,f,s})},  // mehrfach gefunden: bester Wert zählt (+ kleiner Bonus)
+    price(v,kind,src,w){if(!(v>0&&v<100000))return;v=Math.round(v*100)/100;if(res.prices.some(p=>p.v===v&&p.kind===kind))return;const f=src+':'+kind;
+      res.prices.push({v,kind,f,s:w+(kind==='main'?0:-8)+learnBoost(res.shop,'price',f)})},
+    text(t){if(t)res.text=(res.text+' '+t).trim().slice(0,4000)}};
+  if(ad.fromUrl)ad.fromUrl(url,A);
+  const un=urlName(url);if(un)A.name(un,'url',1);
+  if(shareTitle)A.name(shareTitle,'share',2.5);
+  const blocked=t=>/access denied|tut uns leid|captcha|robot check|are you a human|403 forbidden|enable javascript|zugriff verweigert|just a moment/i.test(String(t).slice(0,3000));
+  // 1) Jina Reader: Kopfbereich, Produktdaten und (bei bekannten Shops) die Bereiche mit Name, Bild und Preis
   step('Seite wird gelesen …');
   let pageOk=false;
-  try{const r=await withTimeout(fetch('https://r.jina.ai/'+url,{headers:{'X-Return-Format':'html','X-Target-Selector':'head, script[type="application/ld+json"]'}}),20000),t=await r.text();
-    if(r.ok&&t.length>200&&!blocked(t)){pageOk=true;const p=parseProductHtml(t);
-      if(p.name)res.name=cleanTitle(p.name);if(p.image)res.image=new URL(p.image,url).href;if(p.price>0)res.price=Math.round(p.price*100)/100;res.text=p.text||''}}catch(e){}
-  // Nur eine allgemeine Shop-Seite bekommen (z. B. „Amazon.de“)? Dann taugen Name und Bild nichts
-  if(res.name&&(res.name.length<8||groupKey(res.name).replace(/\.(de|com)$/,'')===groupKey(res.shop)||/^(amazon|startseite|home|willkommen|page not found|404)/i.test(res.name))){res.name='';res.image='';res.price=0;pageOk=false}
-  // 2) Kein Preis in den Produktdaten: im sichtbaren Seitentext suchen
-  if(pageOk&&!res.price){
-    step('Preis wird gesucht …');
-    try{const r=await withTimeout(fetch('https://r.jina.ai/'+url),20000),t=await r.text();
-      if(r.ok&&!blocked(t)){const body=(t.split('Markdown Content:')[1]||t).slice(0,30000);
+  try{const r=await withTimeout(fetch('https://r.jina.ai/'+url,{headers:{'X-Return-Format':'html','X-Target-Selector':'head, script[type="application/ld+json"], [itemprop="price"], [itemprop="image"]'+(ad.sel?', '+ad.sel:'')}}),22000),t=await r.text();
+    if(r.ok&&t.length>200&&!blocked(t)){pageOk=true;parseProductHtml(t,A);if(ad.parse)ad.parse(t,A)}}catch(e){}
+  // 2) Kein klarer Preis oder kaum Bilder: sichtbaren Seitentext lesen (Preise werden nach Art eingeordnet: UVP, Versand, Grundpreis …)
+  if(pageOk&&(!res.prices.some(p=>p.kind==='main')||!cand.some(c=>c.s>3))){
+    step('Preis und Bilder werden gesucht …');
+    try{const r=await withTimeout(fetch('https://r.jina.ai/'+url),22000),t=await r.text();
+      if(r.ok&&!blocked(t)){const body=(t.split('Markdown Content:')[1]||t).slice(0,40000);
         const plain=body.replace(/!\[[^\]]*\]\([^)]*\)/g,' ').replace(/\[([^\]]*)\]\([^)]*\)/g,'$1');
-        const a=analyse({text:plain.split('\n').slice(0,400).join('\n'),lines:null});if(a.price)res.price=a.price;
-        res.text=(res.text+' '+plain.slice(0,3000)).trim();
-        if(!res.image){const im=[...body.matchAll(/!\[[^\]]*\]\((https?:[^)\s]+)\)/g)].map(m=>m[1]).find(u=>!/logo|icon|sprite|\.svg|pixel|track|badge|banner|payment|flag/i.test(u));if(im)res.image=im}}}catch(e){}
+        const a=analyse({text:plain.split('\n').slice(0,400).join('\n'),lines:null},res.shop);
+        a.prices.forEach((p,i)=>A.price(p.v,p.kind,'md',3-i*.4));
+        A.text(plain.slice(0,3000));
+        const ws=words();
+        [...body.matchAll(/!\[([^\]]*)\]\((https?:[^)\s]+)\)/g)].slice(0,40).forEach((m,i)=>{const alt=m[1].toLowerCase(),hit=ws.filter(w=>alt.includes(w)).length;A.img(m[2],'md',1.5-i*.05+Math.min(3,hit))});
+      }}catch(e){}
   }
-  // 2) Microlink: zuverlässig für Name und Produktbild (auch bei großen Shops)
-  if(!res.name||!res.image){
+  // 3) Microlink (wenige freie Abrufe pro Tag) nur, wenn Name oder gutes Bild fehlen
+  if(!res.names.some(n=>n.f!=='url')||!cand.some(c=>c.s>3)){
     step('Produktbild wird gesucht …');
     try{const r=await withTimeout(fetch('https://api.microlink.io/?url='+encodeURIComponent(url)),18000),j=await r.json();
-      if(j.status==='success'&&j.data){if(j.data.title&&!/^(product gallery|amazon\.de|page not found|404)/i.test(j.data.title))res.name=res.name||cleanTitle(j.data.title);
-        if(j.data.image&&j.data.image.url)res.image=res.image||j.data.image.url;if(j.data.publisher&&!res.shop)res.shop=j.data.publisher;
-        if(!res.text&&j.data.description)res.text=j.data.description}
+      if(j.status==='success'&&j.data){if(j.data.title)A.name(j.data.title,'ml',3);if(j.data.image&&j.data.image.url)A.img(j.data.image.url,'ml',4);A.text(j.data.description)}
       else if(r.status===429)res.limit=true}catch(e){}
   }
-  if(res.image){step('Bild wird geladen …');res.file=await fetchImageFile(res.image)}
-  res.cat=guessWishCat(res.name||'',res.text||'');
+  // 4) Bilder laden und vermessen: winzig, Banner-Format oder Logo fallen raus; Bild-KI (falls an) prüft „Produktfoto oder nicht“
+  cand.sort((a,b)=>b.s-a.s);
+  const top=cand.filter(c=>c.s>-2).slice(0,6);
+  if(top.length){
+    step('Bilder werden geprüft …');
+    await Promise.all(top.map(async c=>{const file=await fetchImageFile(c.u);if(!file)return;
+      try{const b=await decodeImage(file),w=imgW(b),h=imgH(b),ar=w/h;
+        if(Math.min(w,h)<120)c.s-=5;else c.s+=Math.min(3,Math.log2(w*h/40000+1));
+        if(ar>2.2||ar<.42)c.s-=5;
+        c.file=file}catch(e){}}));
+    const ok=top.filter(c=>c.file);
+    if(kiOn()&&ok.length){
+      try{step('Bild-KI prüft die Bilder …');for(const c of ok){c.e=await kiEmbed(await cropCanvas(c.file,{x:0,y:0,w:1,h:1},320));c.p=kiProduct(c.e);c.s+=Math.max(-3,Math.min(4,(c.p-.3)*10))}}
+      catch(e){res.kiErr=true}}
+    ok.sort((a,b)=>b.s-a.s);
+    res.imgs=ok.filter(c=>c.s>-4||ok.length===1).map(c=>({file:c.file,url:URL.createObjectURL(c.file),f:c.f,e:c.e||null,s:c.s}));
+  }
+  if(!res.imgs.length&&cand.length&&cand[0].s>0)res.image=cand[0].u;  // nicht ladbar: Adresse direkt anzeigen
+  res.names.sort((a,b)=>b.s-a.s);res.prices.sort((a,b)=>b.s-a.s);
+  res.name=res.names[0]?res.names[0].v:'';
+  res.price=res.prices[0]&&res.prices[0].kind==='main'?res.prices[0].v:0;
+  const ki=res.imgs[0]&&res.imgs[0].e?kiCat(res.imgs[0].e):null;
+  res.cat=decideCat(res.name,res.text,ki);res.catByImg=!!(ki&&res.cat===ki.cat&&ki.cat!==guessWishCat(res.name,res.text));
   return res;
 }
 function linkSheet(prefillUrl,title){
   openSheet('Produkt per Link',`<div class="stack">
     <label class="field"><span>Link zum Produkt</span><input id="lUrl" name="url" inputmode="url" value="${esc(prefillUrl||'')}" placeholder="https://www.zalando.de/…" autocomplete="off"></label>
     <div id="lStatus" class="sub" aria-live="polite"></div>
-    <p class="sub" style="margin:0">Name und Produktbild werden automatisch geholt. Den Preis lesen viele große Shops (z. B. Amazon) nicht automatisch aus – dann trägst du ihn kurz selbst ein. Zum Auslesen wird der Link an die Dienste Jina Reader und Microlink geschickt.</p>
+    <p class="sub" style="margin:0">Name, Preis und Produktbild werden automatisch geholt. Stimmt etwas nicht, tippst du danach einfach eine der anderen gefundenen Möglichkeiten an – die App merkt sich das für diesen Shop. Zum Auslesen wird der Link an die Dienste Jina Reader und ggf. Microlink geschickt.</p>
     <div class="msg" role="alert"></div></div>`,
    `<span class="sp"></span><button class="btn primary" value="save" id="lGo">Produkt laden</button>`,
    ()=>{
     const url=extractUrl(form.elements.url.value);if(!url)return showErr('Bitte einen gültigen Link einfügen (beginnt mit https://).');
     const btn=$('#lGo');btn.disabled=true;
     const step=t=>{const e=$('#lStatus');if(e)e.innerHTML=`<span style="display:flex;gap:10px;align-items:center"><span class="spinner"></span>${esc(t)}</span>`};
-    fetchProduct(url,step).then(p=>{
+    fetchProduct(url,step,title).then(p=>{
       if(!sheet.open)return;
-      if(!p.name&&!p.image){btn.disabled=false;$('#lStatus').textContent=p.limit?'Für heute sind die freien Abrufe aufgebraucht. Mach am besten einen Screenshot vom Produkt.':'Diese Seite lässt sich nicht automatisch lesen (der Shop blockiert das). Mach am besten einen Screenshot vom Produkt.';return}
-      const st={prefill:{name:p.name||(title?cleanTitle(title):''),price:p.price||0,cat:p.cat,shop:p.shop,link:url},guess:p.cat,group:view.wishPresetGroup||''};
+      if(!p.names.length&&!p.imgs.length&&!p.image){btn.disabled=false;$('#lStatus').textContent=p.limit?'Für heute sind die freien Abrufe aufgebraucht. Mach am besten einen Screenshot vom Produkt.':'Diese Seite lässt sich nicht automatisch lesen (der Shop blockiert das). Mach am besten einen Screenshot vom Produkt.';return}
+      const st={prefill:{name:p.name,price:p.price||0,cat:p.cat,shop:p.shop,link:url},guess:p.cat,group:view.wishPresetGroup||'',shop:p.shop,
+        alt:{names:p.names,prices:p.prices,imgs:p.imgs}};
       view.wishPresetGroup='';
-      if(p.file){st.file=p.file;st.url=URL.createObjectURL(p.file);st.crop={x:0,y:0,w:1,h:1}}else if(p.image)st.imgUrl=p.image;
-      st.status=p.price?'Aus dem Link übernommen – prüfe kurz die Angaben.':'Name und Bild übernommen. <b>Den Preis bitte selbst eintragen</b> – der Shop gibt ihn nicht automatisch heraus.';
+      if(p.imgs.length){const m=p.imgs[0];Object.assign(st,{file:m.file,url:m.url,crop:{x:0,y:0,w:1,h:1},imgF:m.f,emb:m.e})}else if(p.image)st.imgUrl=p.image;
+      st.status=(p.price?'Aus dem Link übernommen – prüfe kurz die Angaben.':'Name und Bild übernommen. <b>Den Preis bitte selbst eintragen</b> – der Shop gibt ihn nicht automatisch heraus.')+(p.catByImg?' Kategorie per Bild erkannt.':'');
       sheet.close();wishSheet(null,st);
     }).catch(()=>{btn.disabled=false;$('#lStatus').textContent='Das hat nicht geklappt. Prüfe die Internetverbindung oder mach einen Screenshot.'});
     return false;

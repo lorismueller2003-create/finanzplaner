@@ -1,6 +1,6 @@
 // Offline-Speicher für den Finanzplaner.
-// Eigene Dateien: erst Netz (damit Updates ankommen), sonst Cache. Texterkennung: erst Cache.
-const SHELL = 'finanzplaner-shell-v11';
+// Eigene Dateien: erst Netz (damit Updates ankommen), sonst Cache. Texterkennung und Bild-KI: erst Cache.
+const SHELL = 'finanzplaner-shell-v12';
 const RUNTIME = 'finanzplaner-runtime-v2';
 const META = 'finanzplaner-meta';
 
@@ -41,8 +41,8 @@ self.addEventListener('fetch', e => {
   const url = new URL(req.url);
   // Fremde Server (z. B. Schriften, Bibliotheken für den Import) nicht abfangen – der Browser lädt sie selbst
   if (url.origin !== location.origin) return;
-  // Texterkennung (große, unveränderliche Dateien): erst Cache, sonst Netz
-  if (url.pathname.includes('/tesseract/')) {
+  // Texterkennung und Bild-KI (große, unveränderliche Dateien): erst Cache, sonst Netz
+  if (url.pathname.includes('/tesseract/') || url.pathname.includes('/ki/')) {
     e.respondWith(caches.open(RUNTIME).then(c => c.match(req).then(hit => hit || fetch(req).then(res => {
       if (res.ok) c.put(req, res.clone()).catch(() => {});
       return res;
