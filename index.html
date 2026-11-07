@@ -256,6 +256,28 @@ main{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px
 .gal-item img{height:100%;object-fit:contain}
 .altimg img{object-fit:cover}
 .wgrp-f{display:flex;gap:8px;margin-top:6px}
+/* Kopfzeile einer Auswahl-Gruppe: farbig hinterlegt = Überbegriff, nicht ein Produkt */
+.wgh{background:var(--accent-soft);margin:0 -10px;width:calc(100% + 20px);padding:10px;border-radius:12px 12px 0 0;border-top:0}
+.wgh .wname{color:var(--accent);font-size:15px}
+.wgl{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--accent);opacity:.85}
+.wgh .wstack .wth{border-color:var(--accent-soft)}
+.wone{border:2px solid var(--line);border-radius:14px;padding:0 10px;margin:6px 0 8px}
+.wone>.wrow{border-top:0}
+/* Produktansicht: ganzer Bildschirm, wischen zum nächsten Produkt der Gruppe */
+dialog.sheet.full{height:100dvh;max-height:100dvh;margin:0 auto;border-radius:0;padding-top:env(safe-area-inset-top,0px)}
+dialog.sheet.full[open]{display:flex;flex-direction:column}
+dialog.sheet.full #sheetForm{display:flex;flex-direction:column;flex:1;min-height:0}
+dialog.sheet.full .sb{flex:1;max-height:none;min-height:0}
+dialog.sheet.full .grab{display:none}
+.wnav{display:flex;align-items:center;gap:8px;justify-content:space-between}
+.wnav button{width:40px;height:40px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:inherit;font-size:20px;cursor:pointer;flex:none}
+.wnav button:disabled{opacity:.3}
+.wnav span{font-size:13px;color:var(--muted);text-align:center;flex:1}
+.wnav .dots{display:flex;gap:5px;justify-content:center;margin-top:4px}
+.wnav .dots i{width:6px;height:6px;border-radius:50%;background:var(--line)}.wnav .dots i.on{background:var(--accent)}
+@keyframes slideL{from{transform:translateX(40px);opacity:.3}to{transform:none;opacity:1}}
+@keyframes slideR{from{transform:translateX(-40px);opacity:.3}to{transform:none;opacity:1}}
+.sb.slideL{animation:slideL .22s ease-out}.sb.slideR{animation:slideR .22s ease-out}
 .wgrp-f .btn{flex:1;padding:8px 10px;font-size:13px}
 .nav button svg{width:22px;height:22px}
 .nav button[aria-current="page"]{color:var(--ink);font-weight:700}
@@ -916,8 +938,9 @@ function assess(inp){
   const run=x=>{const R=compute(false,x);return {R,low:lowest(R,'__kauf')}};
   const x=mk(m,day),{R,low}=run(x);
   const lowBefore=lowest(C,null);
-  const thr=thrC(),buffer=Math.max(thr,cents(300));
-  const level=low.bal<0?'red':low.bal<thr?'orange':low.bal<thr+buffer?'yellow':'green';
+  // Leistbar (grün): tiefster Kontostand bleibt über der Warnschwelle und der Kauf verbraucht weniger als 60 % des freien Puffers
+  const thr=thrC(),free=Math.max(0,(lowBefore?lowBefore.bal:balNow())-thr);
+  const level=low.bal<0?'red':low.bal<thr?'orange':(low.bal-thr)<free*.4?'yellow':'green';
   // Besserer Zeitpunkt: direkt nach einem späteren Geldeingang
   let better=null;
   if(level==='red'||level==='orange'){
@@ -1224,6 +1247,7 @@ $('#sScen').onclick=()=>addPurchase(true);
 /* ---------- Sheets ---------- */
 const sheet=$('#sheet'),form=$('#sheetForm');
 function openSheet(title,body,foot,onSubmit){
+  sheet.classList.remove('full');form.ontouchstart=form.ontouchend=null;
   form.innerHTML=`<div class="grab"></div><div class="sh"><h3>${esc(title)}</h3><button type="button" class="ib" data-close aria-label="Schließen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div><div class="sb">${body}</div><div class="sf">${foot}</div>`;
   form.querySelector('[data-close]').onclick=()=>sheet.close();
   form.onchange=null;
@@ -1487,6 +1511,7 @@ document.addEventListener('click',async e=>{
     case 'wishCats':wishCatsSheet();break;
     case 'wishCompare':wishCompare(t.dataset.g);break;
     case 'wishImgAdd':view.wishExtraFor=id;$('#wishExtraFile').click();break;
+    case 'wishNav':if(id)wishDetail(id,+t.dataset.d);break;
     case 'wishImgDel':{const k=t.dataset.k;commit(()=>{const w=S.wish.find(x=>x.id===id);if(w)w.extra=(w.extra||[]).filter(x=>x!==k)},'Bild gelöscht');wishDetail(id);break}
     case 'wishWant':{const g=t.dataset.g,n=Math.max(1,Math.min(groupItems(g).length,groupWant(g)+ +t.dataset.d));commit(()=>setGroupWant(g,n));wishCompare(g);break}
     case 'wishAdd':wishAddChooser();break;
@@ -2260,9 +2285,9 @@ function renderWish(){
     const gk=groupKey(e.name),cmp=!!cmpOn[gk],multi=e.items.length>1;
     const items=cmp?e.items.slice().sort((a,b)=>(a.price>0?a.price:1e9)-(b.price>0?b.price:1e9)):e.items;
     const a=wishAssess(e.name,e.price);if(a){nAll++;if(a.level==='green')nOk++}
-    const head=`<button type="button" class="wrow" data-act="wishCompare" data-g="${esc(e.name)}" style="border-top:0">
+    const head=`<button type="button" class="wrow wgh" data-act="wishCompare" data-g="${esc(e.name)}">
       <span class="wstack">${e.items.slice(0,3).map(w=>thumb(w)).join('')}</span>
-      <span class="wmid"><span class="wname">${esc(e.name)} ›</span><span class="wmeta ${a?a.level:''}">Du willst ${e.want} von ${e.items.length}${a?' · '+levelText(a):''}</span></span>
+      <span class="wmid"><span class="wgl">Auswahl-Gruppe</span><span class="wname">${esc(e.name)} ›</span><span class="wmeta ${a?a.level:''}">Du willst ${e.want} von ${e.items.length}${a?' · '+levelText(a):''}</span></span>
       <span class="wpr"><small>zählt mit Ø${e.want>1?' × '+e.want:''}</small>${e.price?eur(cents(e.price)):'–'}</span></button>`;
     const subs=items.map(w=>{const d=w.price>0&&e.min>0?w.price-e.min:0,best=multi&&w.price>0&&w.price===e.min;
       // Rang = Platz in deiner eigenen Reihenfolge (bleibt auch beim Preisvergleich sichtbar)
@@ -2273,7 +2298,8 @@ function renderWish(){
     return `<div class="wgrp" data-group="${esc(e.name)}">${head}<div class="wglist${cmp?' cmp':''}" data-g="${esc(e.name)}">${subs}</div>
       <div class="wgrp-f"><button class="btn ${cmp?'tonal':''}" type="button" data-act="wishCmpSort" data-g="${esc(e.name)}">${cmp?'Eigene Reihenfolge':'Preise vergleichen'}</button>
        <button class="btn" type="button" data-act="wishAddTo" data-g="${esc(e.name)}">+ Weiteres</button></div></div>`};
-  const tile=e=>e.type==='group'?rowGroup(e):rowItem(e.w);
+  // Einzelne Produkte bekommen denselben Rahmen wie Gruppen (eigenständiger Block)
+  const tile=e=>e.type==='group'?rowGroup(e):`<div class="wone">${rowItem(e.w)}</div>`;
   const chev='<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
   let body;
   if(!entries.length)body=`<div class="card sub">${all.length?'In dieser Kategorie ist nichts.':'Noch leer. Tipp unten rechts auf „Produkt“ und lade einen Screenshot hoch oder füge einen Link ein – Bild, Name, Preis und Kategorie werden erkannt.'}</div>`;
@@ -2282,12 +2308,13 @@ function renderWish(){
       <div class="wsec-b">${g.map(tile).join('')}</div></section>`}).join('');
   else body=`<section class="wsec"><div class="wsec-b">${entries.map(tile).join('')}</div></section>`;
   // Budget-Kasten: Was würde alles zusammen von deinem Puffer (tiefster geplanter Kontostand über der Warnschwelle) verbrauchen?
-  const total=sum(entries),low=lowest(C,null),buf=low?low.bal-thrC():0,pct=buf>0?Math.round(total/buf*100):null;
+  const total=sum(entries),low=lowest(C,null),buf=(low?low.bal:balNow())-thrC(),pct=buf>0?Math.round(total/buf*100):null;
   const bud=`<div class="wbud"><div class="label">${view.wishCat?esc(view.wishCat)+' – wenn du alles kaufst':'Wenn du alles kaufst'}</div>
     <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:2px"><div class="end">${eur(total)}</div>
      ${nAll?`<span class="wmeta ${nOk?'green':'orange'}" style="font-size:13px">${nOk} von ${nAll} heute leistbar</span>`:''}</div>
     ${entries.length?`<div class="wbud-bar"><span class="${pct===null||pct>100?'over':''}" style="width:${pct===null?100:Math.max(2,Math.min(100,pct))}%"></span></div>
-    <div class="sub" style="margin-top:6px">${pct===null?'Gerade ist kein Puffer über deiner Warnschwelle frei.':`${pct} % deines Puffers bis ${esc(mName(S.lastMonth))} (${eur(buf)} über deiner Warnschwelle)`} · ${nProducts} ${nProducts===1?'Produkt':'Produkte'}</div>`:''}</div>`;
+    <div class="sub" style="margin-top:6px">${pct===null?'Gerade ist kein Puffer über deiner Warnschwelle frei.':`${pct} % deines Puffers bis ${esc(mName(S.lastMonth))} (${eur(buf)} über deiner Warnschwelle)`} · ${nProducts} ${nProducts===1?'Produkt':'Produkte'}</div>
+    <div class="sub" style="margin-top:4px;font-size:12px">„Leistbar“ heißt: Dein tiefster Kontostand bleibt über deiner Warnschwelle von ${eur(thrC())}, und der Kauf braucht weniger als 60 % deines Puffers.</div>`:''}</div>`;
   el.innerHTML=`${bud}
    <div class="stick">${all.length?`<div class="chips">${['',...S.wishCats.filter(c=>count(c))].map(c=>`<button type="button" class="chip ${c===(view.wishCat||'')?'on':''}" data-act="wishCat" data-c="${esc(c)}">${c?esc(c)+' · '+count(c):'Alle · '+all.length}</button>`).join('')}</div>
     <div class="row" style="align-items:center;margin:2px 0 8px;flex-wrap:nowrap"><label class="sub" for="wishSort" style="flex:none">Sortieren</label><select id="wishSort" data-act="wishSort" style="flex:1;min-width:0;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:8px 9px">
@@ -2503,8 +2530,13 @@ function buySeries(w){
   P.forEach((p,i)=>{if(p.b&&p.b.id==='__kauf'){mark=i;PB.push({...(PB[i-1]||base[0]),label:'(ohne Kauf)'})}else PB.push(base[j++]||PB[i-1])});
   return {P,PB,markIdx:mark,baseLabel:'ohne Kauf',newLabel:'mit Kauf',date};
 }
-function wishDetail(id){
+function wishDetail(id,dir){
   const w=S.wish.find(x=>x.id===id);if(!w)return;const imgs=wishImgList(w);
+  // Nachbarn in der Auswahl-Gruppe (gleiche Reihenfolge wie in der Liste) – zum Wischen und für die Pfeile
+  let sib=w.group?groupItems(w.group):[];if(sib.length>1&&(view.wishCmpSort||{})[groupKey(w.group)])sib=sib.slice().sort((a,b)=>(a.price>0?a.price:1e9)-(b.price>0?b.price:1e9));
+  const si=sib.indexOf(w),prev=si>0?sib[si-1]:null,next=si>=0&&si<sib.length-1?sib[si+1]:null;
+  const nav=sib.length>1?`<div><div class="wnav"><button type="button" data-act="wishNav" data-id="${prev?prev.id:''}" data-d="-1" aria-label="Vorheriges Produkt" ${prev?'':'disabled'}>‹</button><span>${esc(w.group)} · ${si+1} von ${sib.length}</span><button type="button" data-act="wishNav" data-id="${next?next.id:''}" data-d="1" aria-label="Nächstes Produkt" ${next?'':'disabled'}>›</button></div>
+    <div class="wnav"><span class="dots" style="flex:1">${sib.map(x=>`<i class="${x===w?'on':''}"></i>`).join('')}</span></div></div>`:'';
   let ver='',chart='';
   if(w.price>0){const a=assess({name:w.name,price:w.price,date:defaultBuyDate(),cat:'Sonstiges'});
     if(a&&!a.err){const v=verdictText(a);ver=`<div class="verdict ${a.level}" style="padding:12px;gap:6px"><div class="vh"><span class="badge">${{green:'Empfehlung',yellow:'Mit Vorsicht',orange:'Warten',red:'Abraten'}[a.level]}</span><h3 style="font-size:16px">${esc(v.head)}</h3></div><p class="sub" style="color:inherit;margin:0">${esc(v.t)}</p></div>`;
@@ -2513,7 +2545,7 @@ function wishDetail(id){
   const gallery=imgs.length?`<div class="gal"><div class="gal-track" id="galTrack">${imgs.map(im=>`<div class="gal-item"><img src="${esc(im.src)}" alt="" referrerpolicy="no-referrer">
       ${im.main?'':`<button type="button" class="gal-del" data-act="wishImgDel" data-id="${id}" data-k="${esc(im.key)}" aria-label="Bild löschen">✕</button>`}</div>`).join('')}</div>
     ${imgs.length>1?`<div class="gal-dots" id="galDots">${imgs.map((_,i)=>`<span class="${i?'':'on'}"></span>`).join('')}</div>`:''}</div>`:'';
-  openSheet(w.name,`<div class="stack wdetail">${gallery}
+  openSheet(w.name,`<div class="stack wdetail">${nav}${gallery}
     <div class="row">${imgs.length?`<button class="btn" type="button" id="galCrop" data-act="wishCrop" data-id="${id}" data-k="${esc(imgs[0].key)}">Ausschnitt anpassen</button>`:''}<button class="btn" type="button" data-act="wishImgAdd" data-id="${id}">+ ${imgs.length?'Weitere Bilder':'Bilder'}</button></div>
     <div><div class="kv"><span>Preis</span><b>${w.price>0?eur(cents(w.price)):'–'}</b></div>
      <div class="kv"><span>Kategorie</span><b>${esc(w.cat)}</b></div>
@@ -2526,6 +2558,13 @@ function wishDetail(id){
   const tr=$('#galTrack'),dots=$('#galDots');
   if(tr&&dots)tr.onscroll=()=>{const i=Math.round(tr.scrollLeft/tr.clientWidth);dots.querySelectorAll('span').forEach((d,j)=>d.classList.toggle('on',j===i));
     const gc=$('#galCrop');if(gc&&imgs[i])gc.dataset.k=imgs[i].key};  // „Ausschnitt anpassen“ gilt für das gerade sichtbare Bild
+  sheet.classList.add('full');
+  if(dir)form.querySelector('.sb').classList.add(dir>0?'slideL':'slideR');
+  // Wischen nach links/rechts: nächstes/vorheriges Produkt der Gruppe (nicht auf der Bildergalerie und der Grafik)
+  if(sib.length>1){let t0=null;
+    form.ontouchstart=e=>{const g=e.target.closest('#galTrack,#buyChart');t0=(g&&!(g.id==='galTrack'&&imgs.length<2))||e.touches.length>1?null:{x:e.touches[0].clientX,y:e.touches[0].clientY}};
+    form.ontouchend=e=>{if(!t0)return;const t=e.changedTouches[0],dx=t.clientX-t0.x,dy=t.clientY-t0.y;t0=null;
+      if(Math.abs(dx)>70&&Math.abs(dy)<Math.abs(dx)*.6){const to=dx<0?next:prev;if(to)wishDetail(to.id,dx<0?1:-1)}}}
   if(chart){const el=$('#buyChart'),s=buySeries(w);el.__custom=s;drawChartIn(el,s);if(!el.querySelector('svg'))setTimeout(()=>drawChartIn(el,s),60)}
 }
 /* Weitere Bilder: auf max. 900 px verkleinert, in IndexedDB gespeichert */
@@ -2835,7 +2874,8 @@ async function fetchProduct(url,step,shareTitle){
   const ad=SHOP_ADAPT[shopKey(res.shop)]||{};
   const words=()=>{const n=res.names.slice().sort((a,b)=>b.s-a.s)[0];return n?n.v.toLowerCase().split(/[^a-zäöüß0-9]+/).filter(w=>w.length>=4):[]};
   const A={
-    name(n,src,w){n=cleanTitle(n);if(genericTitle(n,res.shop))return;const s=w+learnBoost(res.shop,'name',src),o=res.names.find(x=>x.v.toLowerCase()===n.toLowerCase());
+    name(n,src,w){n=cleanTitle(n);if(res.shop)n=n.replace(new RegExp('\\s*[|–—-]\\s*'+res.shop.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(\\.[a-z]{2,3})?\\s*$','i'),'').trim();  // z. B. „… | ASOS“
+      if(genericTitle(n,res.shop))return;const s=w+learnBoost(res.shop,'name',src),o=res.names.find(x=>x.v.toLowerCase()===n.toLowerCase());
       if(o){if(s>o.s)Object.assign(o,{f:src,s})}else res.names.push({v:n,f:src,s})},
     img(u,src,w){try{u=new URL(String(u).replace(/&amp;/g,'&').trim(),url).href}catch(e){return}
       if(!/^https?:/i.test(u))return;
