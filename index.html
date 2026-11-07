@@ -1585,7 +1585,7 @@ document.addEventListener('click',async e=>{
     case 'grocKeep':commit(()=>{const x=S.groc.items.find(i=>i.id===id);if(x)x.keep=!x.keep});break;
     case 'grocDel':commit(()=>{S.groc.items=S.groc.items.filter(i=>i.id!==id)},'Artikel gelöscht');break;
     case 'grocFinish':grocFinish();break;
-    case 'grocScan':grocScan();break;
+    case 'grocScan':grocScan(t.dataset.src!=='gallery');break;
     case 'grocPrices':grocPricesSheet();break;
     case 'grocPriceDel':{const k=t.dataset.k;commit(()=>{delete S.groc.prices[k]});grocPricesSheet();break}
     case 'cartPlan':showCartPlan();break;
@@ -2836,7 +2836,7 @@ function grocHTML(){
    <datalist id="gKnown">${Object.values(S.groc.prices||{}).map(p=>`<option value="${esc(p.name)}">${eur(cents(p.price))}</option>`).join('')}</datalist>
    <section class="wsec"><div class="wsec-b">${open.length?open.map(row).join(''):`<p class="sub" style="padding:12px 0;margin:0">${it.length?'Alles im Wagen.':'Noch leer. Artikel oben eintragen – mit ↻ markierte kommen nach jedem Einkauf automatisch wieder auf den Zettel.'}</p>`}</div></section>
    ${got.length?`<section class="wsec"><div class="wsec-h" style="cursor:default"><span>Im Wagen (${got.length})</span></div><div class="wsec-b">${got.map(row).join('')}</div></section>`:''}
-   <div class="row"><button class="btn primary" type="button" data-act="grocFinish">Einkauf abschließen</button><button class="btn" type="button" data-act="grocScan">Kassenbon scannen</button>${nMem?`<button class="btn" type="button" data-act="grocPrices">Gemerkte Preise (${nMem})</button>`:''}</div>`;
+   <div class="row"><button class="btn primary" type="button" data-act="grocFinish">Einkauf abschließen</button><button class="btn" type="button" data-act="grocScan">📷 Kassenbon scannen</button><button class="btn" type="button" data-act="grocScan" data-src="gallery">Bon aus Galerie</button>${nMem?`<button class="btn" type="button" data-act="grocPrices">Gemerkte Preise (${nMem})</button>`:''}</div>`;
 }
 function grocAddQuick(){
   const n=$('#gName'),p=$('#gEst');if(!n)return;const name=n.value.trim();if(!name){n.focus();return}
@@ -2907,7 +2907,7 @@ function parseReceipt(data){
   const nums=s=>[...s.replace(/\b\d{1,2}[.\/]\d{1,2}[.\/]\d{2,4}\b/g,' ').matchAll(/(?<![\d.,])(\d{1,4})\s?[,.]\s?(\d{2})(?![\d.,])/g)].map(m=>+m[1]+ +m[2]/100);
   const bad=/mwst|netto|steuer|ust|rückgeld|ruckgeld|zurück|gegeben|bar\b|pfand|rabatt|ersparnis|gespart|%/i;
   let total=null;const cands=[];
-  for(const [prio,rx] of [[3,/zu zahlen|zahlbetrag|gesamtbetrag/i],[2,/^\s*(summe|gesamt|total|betrag)\b|\bsumme\s*(eur|€)/i],[1,/summe|gesamt|total/i],[1,/(ec|karte|kartenzahlung|girocard|visa|mastercard)/i]]){
+  for(const [prio,rx] of [[3,/zu zahlen|zahlbetrag|gesamtbetrag/i],[2,/^\s*(summe|gesamt|total|betrag)\b|\bsumme\s*(eur|€)/i],[1,/summe|gesamt|total/i],[1,/(\bec\b|karte|kartenzahlung|girocard|visa|mastercard)/i]]){
     lines.forEach(l=>{if(rx.test(l)&&!/zwischen/i.test(l)){const n=nums(l);if(n.length)cands.push({v:n.at(-1),prio})}})}
   cands.sort((a,b)=>b.prio-a.prio);if(cands.length)total=cands[0].v;
   const all=[...new Set(lines.filter(l=>!bad.test(l)).flatMap(nums))].filter(v=>v>0&&v<2000).sort((a,b)=>b-a);
@@ -2916,24 +2916,36 @@ function parseReceipt(data){
   if(dm){const y=dm[3].length===2?'20'+dm[3]:dm[3],iso=`${y}-${pad(+dm[2])}-${pad(+dm[1])}`;if(/^\d{4}-\d\d-\d\d$/.test(iso)&&iso<=TODAY&&iso>=S.startDate)date=iso}
   const shop=SHOPS.find(s=>kwHit(text,s.toLowerCase()))||'';
   // Einzelne Artikel: Zeilen „Name … 1,19 B“ – ohne Summen-, Zahlungs- und Steuerzeilen; nur bis zur Summe
-  const stop=/summe|gesamt|total|zu zahlen|zahlbetrag|mwst|netto|brutto|steuer|ust\b|rückgeld|ruckgeld|gegeben|geg\.|ec[- ]?karte|kartenzahlung|girocard|visa|mastercard|\bbar\b|^eur|kasse|filiale|datum|uhrzeit|tel\.|www|danke|posten|bon-?nr|beleg|terminal|trace/i;
-  const items=[];let qty=null;
+  const stop=/^\s*(summe|gesamt|total|zu zahlen|zahlbetrag|betrag)\b|zwischensumme|gesamtsumme|mwst|netto|brutto|steuer|ust\b|rückgeld|ruckgeld|gegeben|geg\.|ec[- ]?karte|kartenzahlung|girocard|visa|mastercard|\bbar\b|^eur|kasse|filiale|datum|uhrzeit|tel\.|www|danke|posten|bon-?nr|beleg|terminal|trace/i;
+  // Summen- und Zahlungszeilen auch bei Lesefehlern erkennen („SUMNE“, „5UMME“, „Gesamtsurnme“): Wörter mit höchstens 1 falschen Buchstaben
+  const SUMW=['summe','gesamt','gesamtsumme','zwischensumme','total','zahlen','zahlbetrag','betrag','kartenzahlung','girocard','gegeben','rückgeld','ruckgeld','mwst','netto','brutto','steuer','mastercard'];
+  const lev=(a,b)=>{const d=Array.from({length:b.length+1},(_,i)=>i);for(let i=1;i<=a.length;i++){let p=d[0];d[0]=i;for(let j=1;j<=b.length;j++){const t=d[j];d[j]=Math.min(d[j]+1,d[j-1]+1,p+(a[i-1]===b[j-1]?0:1));p=t}}return d[b.length]};
+  const isSumLine=l=>l.toLowerCase().replace(/5/g,'s').replace(/0/g,'o').replace(/[1|]/g,'l').replace(/rn/g,'m').split(/[^a-zäöüß]+/).filter(Boolean).filter((w,i,a)=>i===0||(i===1&&a[0].length<4))  // nur am Zeilenanfang (z. B. „Summe“, „Zu zahlen“) – „Waschmittel Total Care“ ist ein Artikel
+    .some(w=>w.length>=4&&SUMW.some(k=>Math.abs(k.length-w.length)<=1&&lev(w,k)<=1));
+  // Keine klare Summenzeile? Dann die erste (auch verlesene) Summenzeile – nicht Rückgeld, Gegeben oder Steuer
+  {const c2=lines.filter(l=>isSumLine(l)&&!/mwst|netto|steuer|brutto|gegeben|r(ü|ue|u)ckgeld|zur(ü|u)ck/i.test(l)).map(l=>nums(l).at(-1)).filter(v=>v>0);if(c2.length&&!cands.some(c=>c.prio>=2))total=c2[0]}
+  const items=[];let qty=null,run=0;
   for(const l of lines){
-    if(/^\s*(summe|gesamt|total|zu zahlen)/i.test(l))break;
+    // Ab der Summe kommen keine Artikel mehr
+    if(/^\s*(summe|gesamt|total|zu zahlen)/i.test(l)||(items.length&&isSumLine(l)&&nums(l).length))break;
     const q=l.match(/^\s*(\d{1,2})\s*[xX*×]\s*(\d{1,3})\s?[,.]\s?(\d{2})\b/);   // Mengenzeile „2 x 1,19“
     if(q&&!/[a-zäöüß]{2}/i.test(l.replace(/\bx\b/i,''))){qty={n:+q[1],unit:+q[2]+ +q[3]/100};continue}
     const m=l.match(/^(.*?[a-zäöüß].*?)\s+(-?)(\d{1,4})\s?[,.]\s?(\d{2})\s*[a-z0-9*]{0,2}\s*$/i);
-    if(!m||stop.test(l)||m[2]==='-'){qty=null;continue}
+    if(!m||stop.test(l)||m[2]==='-'||isSumLine(l)){qty=null;continue}
     let name=m[1].replace(/^\d{3,}\s+/,'').replace(/\s+\d+\s*[xX*×]\s*$/,'').replace(/\s{2,}/g,' ').trim();
     if(!/[a-zäöüß]{2}/i.test(name)){qty=null;continue}
     const price=+m[3]+ +m[4]/100,inl=name.match(/^(\d{1,2})\s*[xX*×]\s+(.+)$/);
     const n=qty?qty.n:inl?+inl[1]:1;if(inl)name=inl[2];
-    items.push({name:name.slice(0,40),price,qty:n,unit:qty?qty.unit:Math.round(price/n*100)/100,pfand:/pfand|leergut/i.test(name)});qty=null;
+    // Preis = Summe aller bisherigen Artikel → das ist die (Zwischen-)Summe, kein Artikel. Ebenso eine Zeile mit genau dem Bon-Gesamtbetrag
+    if(items.length>=2&&Math.round(price*100)===Math.round(run*100))break;
+    if(total!=null&&items.length>=1&&Math.abs(price-total)<.005&&price>=run*.9)break;
+    items.push({name:name.slice(0,40),price,qty:n,unit:qty?qty.unit:Math.round(price/n*100)/100,pfand:/pfand|leergut/i.test(name)});qty=null;run+=price;
   }
   return {amount:total,date,shop,items,amounts:[...new Set([total,...all].filter(v=>v>0))].slice(0,5)};
 }
-function grocScan(){
-  const inp=document.createElement('input');inp.type='file';inp.accept='image/*';
+// camera=true: öffnet direkt die Kamera (Rückkamera); sonst Fotoauswahl aus der Galerie
+function grocScan(camera=true){
+  const inp=document.createElement('input');inp.type='file';inp.accept='image/*';if(camera)inp.setAttribute('capture','environment');
   inp.onchange=async()=>{const picked=inp.files[0];if(!picked)return;
     let file;try{const buf=await picked.arrayBuffer();file=new File([buf],picked.name||'bon',{type:/^image\//.test(picked.type)?picked.type:sniffType(buf)})}catch(e){snack('Das Foto konnte nicht gelesen werden.');return}
     openSheet('Kassenbon',`<div class="stack"><div id="rbStatus" class="sub"><span style="display:flex;gap:10px;align-items:center"><span class="spinner"></span>Kassenbon wird gelesen …</span></div></div>`,'',()=>true);
@@ -3415,7 +3427,7 @@ function handleShareTarget(){
     else if(doA==='cart'){view.wishMode='wish';setTab('einkauf');renderWish();if(cartIds().length)cartSheet();else snack('Der Warenkorb ist leer')}
     else if(doA==='groc'){groc();setTimeout(()=>{const n=$('#gName');if(n)n.focus()},300)}
     else if(doA==='bon'){groc();openSheet('Kassenbon scannen',`<div class="stack"><p class="sub" style="margin:0">Fotografiere den Kassenbon oder wähle ein Foto aus. Betrag, Datum und Laden werden gelesen und mit deinem geplanten Einkauf verrechnet.</p>
-      <button class="btn primary full" type="button" data-act="grocScan">Foto vom Kassenbon wählen</button></div>`,'',()=>true)}
+      <button class="btn primary full" type="button" data-act="grocScan">📷 Kamera öffnen</button><button class="btn full" type="button" data-act="grocScan" data-src="gallery">Foto aus der Galerie wählen</button></div>`,'',()=>true)}
     else if(doA==='fix'){setTab('start');fixBalSheet()}
     return}
   if(!u)return;
