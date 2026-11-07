@@ -279,6 +279,31 @@ main{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px
 .ctab th:first-child,.ctab td:first-child{text-align:left}
 .ctab td{text-align:right;padding:7px 0;border-bottom:1px solid var(--grid);font-variant-numeric:tabular-nums}
 .neg{color:var(--neg)}.warnc{color:var(--warn)}
+/* Umschalter Wunschliste | Einkaufszettel */
+.wmode{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border-radius:14px;background:var(--surface-2);margin-bottom:10px}
+.wmode button{border:0;border-radius:10px;padding:9px 6px;background:none;color:var(--ink-2);font:inherit;font-weight:600;cursor:pointer}
+.wmode button[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow);font-weight:700}
+/* Einkaufszettel */
+.gadd{display:flex;gap:8px;margin:10px 0}
+.gadd input{flex:1;min-width:0;border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:11px 12px}
+.gadd input#gEst{flex:0 0 74px}
+.gadd .btn{flex:none;width:46px;padding:0;font-size:22px}
+.grow{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--grid)}
+.wsec-b>.grow:first-child{border-top:0}
+.gchk{width:26px;height:26px;border-radius:8px;border:2px solid var(--line);display:grid;place-items:center;flex:none;cursor:pointer;color:var(--accent-ink)}
+.gchk svg{width:16px;height:16px}
+.grow.got .gchk{background:var(--accent);border-color:var(--accent)}
+.grow.got .gname{text-decoration:line-through;color:var(--muted)}
+.gname{flex:1;min-width:0;overflow-wrap:anywhere}
+.gest{font-size:13px;color:var(--muted);white-space:nowrap}
+.gkeep,.gdel{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;flex:none;cursor:pointer;color:var(--muted);font-size:16px}
+.gkeep.on{background:var(--accent-soft);color:var(--accent);font-weight:700}
+/* Warenkorb-Planer */
+.cplan{background:var(--surface-2);border-radius:14px;padding:12px}
+.cplan-d{padding:8px 0;border-top:1px solid var(--line)}
+.cplan-d:first-of-type{border-top:0}
+.cplan-h{display:flex;justify-content:space-between;gap:10px}
+.cplan-d.bad .cplan-h b{color:var(--crit)}
 /* Produktansicht: ganzer Bildschirm, wischen zum nächsten Produkt der Gruppe */
 dialog.sheet.full{height:100dvh;max-height:100dvh;margin:0 auto;border-radius:0;padding-top:env(safe-area-inset-top,0px)}
 dialog.sheet.full[open]{display:flex;flex-direction:column}
@@ -515,7 +540,7 @@ function syncCats(){
   if(!S.cats.includes('Sonstiges'))S.cats.push('Sonstiges');
   CATS=['Einkommen',...S.cats.filter(c=>c!=='Einkommen')];EXP_CATS=CATS.slice(1);
   S.budgets=S.budgets||{};S.goals=S.goals||[];S.learn=S.learn||{};
-  S.wish=S.wish||[];S.wishLearn=S.wishLearn||{};S.wishGroupMeta=S.wishGroupMeta||{};S.shopLearn=S.shopLearn||{};S.cart=S.cart||{ids:[],ship:0};
+  S.wish=S.wish||[];S.wishLearn=S.wishLearn||{};S.wishGroupMeta=S.wishGroupMeta||{};S.shopLearn=S.shopLearn||{};S.cart=S.cart||{ids:[],ship:0};S.groc=S.groc||{items:[]};
   if(!Array.isArray(S.wishCats)||!S.wishCats.length)S.wishCats=WISH_CATS.slice();
   for(const w of S.wish)if(w.cat&&!S.wishCats.includes(w.cat))S.wishCats.push(w.cat);
 }
@@ -560,6 +585,7 @@ const view={tab:'start',month:null,auswMonth:null,flow:{buch:null,start:null},q:
 try{const t=localStorage.getItem(KEY+':tab');if(t)view.tab=t}catch(e){}
 if(['start','buchungen','scan','szen','ausw','einkauf'].includes(location.hash.slice(1)))view.tab=location.hash.slice(1);
 try{view.wishSort=localStorage.getItem(KEY+':wishSort')||'cat'}catch(e){view.wishSort='cat'}
+try{view.wishMode=localStorage.getItem(KEY+':wishMode')||'wish'}catch(e){view.wishMode='wish'}
 
 const CLIENT=uid();
 const cloud={ref:null,writing:false,again:false,timer:null};
@@ -697,7 +723,8 @@ function setTab(t,quiet){
   for(const [k,id] of [['start','p-start'],['buchungen','p-buchungen'],['scan','p-scan'],['szen','p-szen'],['ausw','p-ausw'],['einkauf','p-wish']])$('#'+id).hidden=k!==t;
   document.querySelectorAll('.nav button').forEach(b=>b.setAttribute('aria-current',b.dataset.tab===t?'page':'false'));
   const fab=$('#fab');fab.hidden=t!=='buchungen'&&t!=='einkauf';
-  fab.dataset.act=t==='einkauf'?'wishAdd':'add';fab.lastChild.textContent=t==='einkauf'?'Produkt':'Buchung';
+  const groc=t==='einkauf'&&view.wishMode==='groc';
+  fab.dataset.act=t==='einkauf'?(groc?'grocAdd':'wishAdd'):'add';fab.lastChild.textContent=t==='einkauf'?(groc?'Artikel':'Produkt'):'Buchung';
   $('#title').textContent={start:'Finanzplaner',buchungen:'Buchungen',scan:'Kauf prüfen',szen:'Ziele & Szenarien',ausw:'Auswertung',einkauf:'Einkaufsliste'}[t];
   try{localStorage.setItem(KEY+':tab',t)}catch(e){}
   if(!quiet){window.scrollTo(0,0);requestAnimationFrame(()=>document.querySelectorAll('.panel:not([hidden]) .chart').forEach(drawChartIn))}
@@ -1530,6 +1557,17 @@ document.addEventListener('click',async e=>{
     case 'wishNav':if(id)wishDetail(id,+t.dataset.d);break;
     case 'cartToggle':cartToggle(id);if(sheet.open&&t.closest('#sheet'))wishDetail(id);break;
     case 'cartOpen':cartSheet();break;
+    case 'wishMode':view.wishMode=t.dataset.m;try{localStorage.setItem(KEY+':wishMode',view.wishMode)}catch(e){}setTab('einkauf',true);renderWish();break;
+    case 'grocAdd':{if(view.wishMode!=='groc'){view.wishMode='groc';setTab('einkauf',true);renderWish()}const n=$('#gName');if(n){n.scrollIntoView({block:'center'});n.focus()}break}
+    case 'grocAddQuick':grocAddQuick();break;
+    case 'grocTick':commit(()=>{const x=S.groc.items.find(i=>i.id===id);if(x)x.done=!x.done});break;
+    case 'grocKeep':commit(()=>{const x=S.groc.items.find(i=>i.id===id);if(x)x.keep=!x.keep});break;
+    case 'grocDel':commit(()=>{S.groc.items=S.groc.items.filter(i=>i.id!==id)},'Artikel gelöscht');break;
+    case 'grocFinish':grocFinish();break;
+    case 'grocScan':grocScan();break;
+    case 'cartPlan':showCartPlan();break;
+    case 'cartPlanApply':{const el=$('#cPlan'),plan=(el&&el.__plan||[]).filter(p=>p.d);if(!plan.length)break;const {ship}=cartTotals();
+      sheet.close();cartCommit(plan.map(p=>({w:p.w,date:p.d.date})),ship,false,`${plan.length} ${plan.length===1?'Kauf':'Käufe'} im Plan eingetragen`);break}
     case 'cartRemove':commit(()=>{const ids=cartIds(),i=ids.indexOf(id);if(i>=0)ids.splice(i,1)});if(cartIds().length)cartSheet();else{sheet.close();snack('Der Warenkorb ist leer')}break;
     case 'cartClear':if(await ask('Alle Produkte aus dem Warenkorb nehmen? Sie bleiben auf der Einkaufsliste.','Leeren')){commit(()=>{S.cart={ids:[],ship:0}},'Warenkorb geleert');sheet.close()}break;
     case 'wishImgDel':{const k=t.dataset.k;commit(()=>{const w=S.wish.find(x=>x.id===id);if(w)w.extra=(w.extra||[]).filter(x=>x!==k)},'Bild gelöscht');wishDetail(id);break}
@@ -2280,12 +2318,35 @@ function wishAssess(name,price){
   if(!(price>0))return null;
   try{const a=assess({name,price,date:defaultBuyDate(),cat:'Sonstiges'});return a&&!a.err?a:null}catch(e){return null}
 }
-function levelText(a){
-  if(!a)return '';if(a.level==='green')return 'heute leistbar';if(a.level==='yellow')return 'knapp';
-  return a.better?'lieber warten bis '+mOnly(a.better.m):a.level==='orange'?'lieber warten':'nicht leistbar';
+/* Mögliche Kauftermine: heute und direkt nach jedem späteren Geldeingang im Plan */
+function buyDates(){
+  const today=defaultBuyDate(),out=[{date:today,m:today.slice(0,7),day:+today.slice(8),ord:null,after:''}];
+  for(const mo of C.months)for(const r of mo.rows){
+    if(r.a<=0||r.b.cat!=='Einkommen')continue;const d=r.b.day||daysIn(mo.m),iso=fmtISO(mo.m,d);
+    if(iso<=today||out.some(o=>o.date===iso))continue;out.push({date:iso,m:mo.m,day:d,ord:r.b.ord+.001,after:r.b.desc});
+  }
+  return out;
+}
+/* Frühester Termin, an dem ein Betrag „leistbar“ ist (gleiche Regel wie überall: grün). Zwischenspeicher pro Darstellung */
+let affCache=null;
+function affordableFrom(price){
+  if(!(price>0))return null;affCache=affCache||new Map();const k=Math.round(price*100);if(affCache.has(k))return affCache.get(k);
+  let res=null;
+  for(const d of buyDates()){try{const a=assess({name:'x',price,date:d.date,cat:'Sonstiges'});if(a&&!a.err&&a.level==='green'){res=d.date;break}}catch(e){}}
+  affCache.set(k,res);return res;
+}
+const shortD=iso=>iso?`${+iso.slice(8)}.${+iso.slice(5,7)}.`:'';
+function levelText(a,price){
+  if(!a)return '';if(a.level==='green')return 'heute leistbar';
+  const from=affordableFrom(price);
+  return from?(a.level==='yellow'?'knapp · ':'')+'leistbar ab '+shortD(from):'im Plan nicht leistbar';
 }
 function renderWish(){
   const el=$('#p-wish');if(!el)return;
+  affCache=null;  // „leistbar ab“ neu berechnen
+  // Umschalter oben: Wunschliste | Einkaufszettel
+  const mode=view.wishMode==='groc'?'groc':'wish',modeSw=`<div class="wmode" role="tablist"><button type="button" role="tab" aria-selected="${mode==='wish'}" data-act="wishMode" data-m="wish">Wunschliste</button><button type="button" role="tab" aria-selected="${mode==='groc'}" data-act="wishMode" data-m="groc">Einkaufszettel${S.groc.items.filter(x=>!x.done).length?' · '+S.groc.items.filter(x=>!x.done).length:''}</button></div>`;
+  if(mode==='groc'){el.innerHTML=modeSw+grocHTML();const gn=$('#gName'),ge=$('#gEst');[gn,ge].forEach(i=>i.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();grocAddQuick()}});return}
   const all=S.wish,sort=view.wishSort||'cat';
   if(view.wishCat&&!all.some(w=>w.cat===view.wishCat))view.wishCat='';
   const by={cat:(a,b)=>S.wishCats.indexOf(a.cat)-S.wishCats.indexOf(b.cat)||a.price-b.price,
@@ -2298,7 +2359,7 @@ function renderWish(){
   const thumb=(w,rank)=>{const img=wishImg.get(w.id)||w.imgUrl;return `<span class="wth">${rank?`<b class="rank" aria-label="Platz ${rank}">${rank}</b>`:''}${img?`<img src="${esc(img)}" alt="" referrerpolicy="no-referrer" draggable="false" loading="lazy">`:'Kein Bild'}</span>`};
   const rowItem=w=>{const a=wishAssess(w.name,w.price);if(a){nAll++;if(a.level==='green')nOk++}
     return `<button type="button" class="wrow" data-act="wishOpen" data-id="${w.id}">${thumb(w)}
-      <span class="wmid"><span class="wname">${esc(w.name)}</span><span class="wmeta ${a?a.level:''}">${esc([w.shop,levelText(a)].filter(Boolean).join(' · ')||w.cat)}</span></span>
+      <span class="wmid"><span class="wname">${esc(w.name)}</span><span class="wmeta ${a?a.level:''}">${esc([w.shop,levelText(a,w.price)].filter(Boolean).join(' · ')||w.cat)}</span></span>
       <span class="wpr">${w.price>0?eur(cents(w.price)):'–'}</span>${cartBtn(w.id)}</button>`};
   // Auswahl-Gruppe: Kopfzeile (zählt mit Ø) und darunter alle Produkte mit Preisbalken
   const rowGroup=e=>{
@@ -2307,7 +2368,7 @@ function renderWish(){
     const a=wishAssess(e.name,e.price);if(a){nAll++;if(a.level==='green')nOk++}
     const head=`<button type="button" class="wrow wgh" data-act="wishCompare" data-g="${esc(e.name)}">
       <span class="wstack">${e.items.slice(0,3).map(w=>thumb(w)).join('')}</span>
-      <span class="wmid"><span class="wgl">Auswahl-Gruppe</span><span class="wname">${esc(e.name)} ›</span><span class="wmeta ${a?a.level:''}">Du willst ${e.want} von ${e.items.length}${a?' · '+levelText(a):''}</span></span>
+      <span class="wmid"><span class="wgl">Auswahl-Gruppe</span><span class="wname">${esc(e.name)} ›</span><span class="wmeta ${a?a.level:''}">Du willst ${e.want} von ${e.items.length}${a?' · '+levelText(a,e.price):''}</span></span>
       <span class="wpr"><small>zählt mit Ø${e.want>1?' × '+e.want:''}</small>${e.price?eur(cents(e.price)):'–'}</span></button>`;
     const subs=items.map(w=>{const d=w.price>0&&e.min>0?w.price-e.min:0,best=multi&&w.price>0&&w.price===e.min;
       // Rang = Platz in deiner eigenen Reihenfolge (bleibt auch beim Preisvergleich sichtbar)
@@ -2337,7 +2398,7 @@ function renderWish(){
     <div class="sub" style="margin-top:4px;font-size:12px">„Leistbar“ heißt: Dein tiefster Kontostand bleibt über deiner Warnschwelle von ${eur(thrC())}, und der Kauf braucht weniger als 60 % deines Puffers.</div>`:''}</div>`;
   // Warenkorb-Leiste: nur wenn etwas drin ist
   const ct=cartTotals(),cartBar=ct.items.length?`<button type="button" class="wcartbar" data-act="cartOpen">${CART_SVG}<span style="flex:1;text-align:left">Warenkorb · ${ct.items.length} ${ct.items.length===1?'Produkt':'Produkte'}</span><b>${eur(ct.total)}</b><span aria-hidden="true">›</span></button>`:'';
-  el.innerHTML=`${bud}${cartBar}
+  el.innerHTML=`${modeSw}${bud}${cartBar}
    <div class="stick">${all.length?`<div class="chips">${['',...S.wishCats.filter(c=>count(c))].map(c=>`<button type="button" class="chip ${c===(view.wishCat||'')?'on':''}" data-act="wishCat" data-c="${esc(c)}">${c?esc(c)+' · '+count(c):'Alle · '+all.length}</button>`).join('')}</div>
     <div class="row" style="align-items:center;margin:2px 0 8px;flex-wrap:nowrap"><label class="sub" for="wishSort" style="flex:none">Sortieren</label><select id="wishSort" data-act="wishSort" style="flex:1;min-width:0;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:8px 9px">
      <option value="cat" ${sort==='cat'?'selected':''}>nach Kategorie</option><option value="asc" ${sort==='asc'?'selected':''}>Preis: günstigste zuerst</option><option value="desc" ${sort==='desc'?'selected':''}>Preis: teuerste zuerst</option><option value="neu" ${sort==='neu'?'selected':''}>Zuletzt hinzugefügt</option></select></div>`:''}</div>
@@ -2685,6 +2746,109 @@ function wishCatsSheet(){
 }
 $('#wishFile').addEventListener('change',e=>{const f=e.target.files[0];if(f)handleWishImage(f,view.wishEditId).finally(()=>{e.target.value='';view.wishEditId=null})});
 
+/* ---------- Einkaufszettel (Wocheneinkauf) mit Budget aus dem Plan + Kassenbon scannen ----------
+   S.groc.items = [{id,name,est (geschätzter Preis €),done (im Wagen),keep (kommt nach dem Einkauf wieder auf den Zettel)}] */
+const isGrocB=b=>b.cat==='Lebensmittel'||/einkauf|lebensmittel|supermarkt/i.test(b.desc||'');
+// Geplante (noch offene) Einkäufe aus dem Plan, nach Datum
+function grocPlanned(){
+  return S.bookings.filter(b=>!b.done&&!b.calc&&b.amount<0&&isGrocB(b)).map(b=>({b,date:b.day?fmtISO(b.month,b.day):fmtISO(b.month,daysIn(b.month))})).sort((a,b)=>a.date.localeCompare(b.date));
+}
+const nextShop=()=>grocPlanned().find(x=>x.date>=TODAY)||null;
+function grocHTML(){
+  const it=S.groc.items,open=it.filter(x=>!x.done),got=it.filter(x=>x.done),est=it.reduce((s,x)=>s+cents(x.est||0),0),nb=nextShop();
+  const budget=nb?-cents(nb.b.amount):0,pct=budget?Math.round(est/budget*100):0;
+  const row=x=>`<div class="grow${x.done?' got':''}">
+      <span class="gchk" data-act="grocTick" data-id="${x.id}" role="checkbox" aria-checked="${!!x.done}" tabindex="0" aria-label="${esc(x.name)} ${x.done?'wieder offen':'in den Wagen'}">${x.done?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>':''}</span>
+      <span class="gname">${esc(x.name)}</span>${x.est?`<span class="gest">${eur(cents(x.est))}</span>`:''}
+      <span class="gkeep${x.keep?' on':''}" data-act="grocKeep" data-id="${x.id}" role="button" tabindex="0" aria-label="${x.keep?'Nicht mehr jedes Mal':'Jedes Mal kaufen'}" title="Jedes Mal kaufen">↻</span>
+      <span class="gdel" data-act="grocDel" data-id="${x.id}" role="button" tabindex="0" aria-label="${esc(x.name)} löschen">✕</span></div>`;
+  return `<div class="wbud"><div class="label">${nb?'Nächster Einkauf laut Plan':'Einkaufszettel'}</div>
+     ${nb?`<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:2px"><span><b>${esc(nb.b.desc.replace(/\s*\d{1,2}\.\d{1,2}\.?$/,''))}</b> · ${esc(shortD(nb.date))}</span><div class="end">${eur(budget)}</div></div>
+       <div class="wbud-bar"><span class="${pct>100?'over':''}" style="width:${Math.max(2,Math.min(100,pct))}%"></span></div>
+       <div class="sub" style="margin-top:6px">${est?`Geschätzt ${eur(est)} von ${eur(budget)}${pct>100?` – ${eur(est-budget)} über dem Budget`:` – noch ${eur(budget-est)} frei`}`:'Trag bei Artikeln einen ungefähren Preis ein, dann siehst du, ob das Budget reicht.'}</div>`
+     :`<p class="sub" style="margin:4px 0 0">Kein geplanter Einkauf im Plan. Lege unter Einstellungen → Laufende Buchungen z. B. „Einkaufen“ an – dann siehst du hier dein Budget.</p>`}</div>
+   <div class="gadd"><input id="gName" placeholder="Artikel, z. B. Milch" autocomplete="off" enterkeyhint="done"><input id="gEst" inputmode="decimal" placeholder="€" autocomplete="off" aria-label="Ungefährer Preis"><button class="btn primary" type="button" data-act="grocAddQuick" aria-label="Hinzufügen">+</button></div>
+   <section class="wsec"><div class="wsec-b">${open.length?open.map(row).join(''):`<p class="sub" style="padding:12px 0;margin:0">${it.length?'Alles im Wagen.':'Noch leer. Artikel oben eintragen – mit ↻ markierte kommen nach jedem Einkauf automatisch wieder auf den Zettel.'}</p>`}</div></section>
+   ${got.length?`<section class="wsec"><div class="wsec-h" style="cursor:default"><span>Im Wagen (${got.length})</span></div><div class="wsec-b">${got.map(row).join('')}</div></section>`:''}
+   <div class="row"><button class="btn primary" type="button" data-act="grocFinish">Einkauf abschließen</button><button class="btn" type="button" data-act="grocScan">Kassenbon scannen</button></div>`;
+}
+function grocAddQuick(){
+  const n=$('#gName'),p=$('#gEst');if(!n)return;const name=n.value.trim();if(!name){n.focus();return}
+  const v=parseNum(p.value),est=!isNaN(v)&&v>0?Math.round(v*100)/100:0;
+  // schon da? dann nur wieder auf offen setzen
+  const ex=S.groc.items.find(x=>x.name.toLowerCase()===name.toLowerCase());
+  commit(()=>{if(ex){ex.done=false;if(est)ex.est=est}else S.groc.items.push({id:'g'+uid(),name,est,done:false,keep:false})});
+  setTimeout(()=>{const n2=$('#gName');if(n2)n2.focus()},30);
+}
+/* Einkauf abschließen: tatsächlichen Betrag mit dem geplanten Einkauf verrechnen (oder neu buchen) */
+function grocFinish(pre){
+  pre=pre||{};
+  const got=S.groc.items.filter(x=>x.done),est=got.reduce((s,x)=>s+cents(x.est||0),0);
+  const date=pre.date&&pre.date>=S.startDate?pre.date:defaultBuyDate();
+  openSheet('Einkauf abschließen',`<div class="stack">
+    ${pre.note?`<p class="sub" style="margin:0">${pre.note}</p>`:''}
+    <div class="grid2"><label class="field"><span>Bezahlt (€)</span><input id="gfAmt" name="amt" inputmode="decimal" value="${pre.amount?numDE(pre.amount.toFixed(2)):est?numDE((est/100).toFixed(2)):''}" placeholder="0,00" autocomplete="off"></label>
+     <label class="field"><span>Datum</span><input id="gfDate" name="date" type="date" value="${date}" min="${S.startDate}"></label></div>
+    <label class="field"><span>Laden (optional)</span><input id="gfShop" name="shop" value="${esc(pre.shop||'')}" placeholder="z. B. Rewe" autocomplete="off"></label>
+    <div id="gfTarget" class="sub"></div>
+    ${pre.amounts&&pre.amounts.length>1?`<div><div class="label" style="margin-bottom:4px">Anderer Betrag vom Bon?</div><div class="alts">${pre.amounts.map(v=>`<button type="button" class="chip" data-gfv="${v}">${eur(cents(v))}</button>`).join('')}</div></div>`:''}
+    ${S.groc.items.length?`<p class="sub" style="margin:0">Danach: Artikel im Wagen verschwinden vom Zettel, ↻-Artikel kommen wieder auf „offen“.</p>`:''}
+    <div class="msg" role="alert"></div></div>`,
+   `<span class="sp"></span><button class="btn primary" value="save">Eintragen</button>`,
+   ()=>{
+    const f=form.elements,v=parseNum(f.amt.value),d=f.date.value;
+    if(isNaN(v)||v<=0)return showErr('Bitte den bezahlten Betrag eingeben, z. B. 38,40.');
+    if(!d||d<S.startDate)return showErr('Bitte ein Datum innerhalb deiner Planung wählen.');
+    const shop=f.shop.value.trim(),t=grocTarget(d),m=d.slice(0,7),day=+d.slice(8);
+    commit(()=>{
+      if(m>S.lastMonth)S.lastMonth=m;
+      if(t){const b=S.bookings.find(x=>x.id===t.b.id);Object.assign(b,{amount:-Math.round(v*100)/100,done:true,month:m,day});if(b.ruleId)b.edited=true;
+        if(shop&&!b.desc.includes(shop))b.desc=b.desc+' · '+shop;b.ord=placeOrd(m,day,b.id)}
+      else S.bookings.push({id:uid(),month:m,day,desc:shop?'Einkauf '+shop:'Einkauf',amount:-Math.round(v*100)/100,cat:EXP_CATS.includes('Lebensmittel')?'Lebensmittel':'Sonstiges',done:true,src:'groc',ord:placeOrd(m,day)});
+      S.groc.items=S.groc.items.filter(x=>!x.done||x.keep);S.groc.items.forEach(x=>x.done=false);view.month=m;
+    },t?`Einkauf verrechnet: ${eur(cents(v))} statt ${eur(-cents(t.b.amount))}`:`Einkauf über ${eur(cents(v))} eingetragen`);
+   });
+  const showT=()=>{const t=grocTarget(form.elements.date.value),v=parseNum(form.elements.amt.value);
+    $('#gfTarget').innerHTML=t?`Wird mit dem geplanten <b>${esc(t.b.desc)}</b> (${esc(shortD(t.date))}, ${eur(-cents(t.b.amount))}) verrechnet${!isNaN(v)&&v>0?` – ${cents(v)>-cents(t.b.amount)?eur(cents(v)+cents(t.b.amount))+' mehr':eur(-cents(t.b.amount)-cents(v))+' weniger'} als geplant`:''}.`
+      :'Kein geplanter Einkauf in der Nähe dieses Datums – wird als neue Ausgabe eingetragen.'};
+  form.elements.amt.oninput=showT;form.elements.date.onchange=showT;showT();
+  form.querySelectorAll('[data-gfv]').forEach(b=>b.onclick=()=>{form.elements.amt.value=numDE((+b.dataset.gfv).toFixed(2));showT()});
+}
+// Passender geplanter Einkauf: offen, höchstens 6 Tage vom Datum entfernt (der nächstgelegene)
+function grocTarget(d){
+  if(!d)return null;const t0=new Date(d).getTime();
+  return grocPlanned().map(x=>({...x,dist:Math.abs(new Date(x.date).getTime()-t0)/864e5})).filter(x=>x.dist<=6).sort((a,b)=>a.dist-b.dist)[0]||null;
+}
+/* Kassenbon: Gesamtbetrag, Datum und Laden per Texterkennung lesen */
+function parseReceipt(data){
+  const lines=String(data.text||'').split('\n').map(s=>s.trim()).filter(Boolean),text=lines.join('\n');
+  // Beträge (nicht Teile eines Datums wie „07.11.26“ oder einer Uhrzeit)
+  const nums=s=>[...s.replace(/\b\d{1,2}[.\/]\d{1,2}[.\/]\d{2,4}\b/g,' ').matchAll(/(?<![\d.,])(\d{1,4})\s?[,.]\s?(\d{2})(?![\d.,])/g)].map(m=>+m[1]+ +m[2]/100);
+  const bad=/mwst|netto|steuer|ust|rückgeld|ruckgeld|zurück|gegeben|bar\b|pfand|rabatt|ersparnis|gespart|%/i;
+  let total=null;const cands=[];
+  for(const [prio,rx] of [[3,/zu zahlen|zahlbetrag|gesamtbetrag/i],[2,/^\s*(summe|gesamt|total|betrag)\b|\bsumme\s*(eur|€)/i],[1,/summe|gesamt|total/i],[1,/(ec|karte|kartenzahlung|girocard|visa|mastercard)/i]]){
+    lines.forEach(l=>{if(rx.test(l)&&!/zwischen/i.test(l)){const n=nums(l);if(n.length)cands.push({v:n.at(-1),prio})}})}
+  cands.sort((a,b)=>b.prio-a.prio);if(cands.length)total=cands[0].v;
+  const all=[...new Set(lines.filter(l=>!bad.test(l)).flatMap(nums))].filter(v=>v>0&&v<2000).sort((a,b)=>b-a);
+  if(total==null&&all.length)total=all[0];
+  const dm=text.match(/\b(\d{1,2})\.(\d{1,2})\.(\d{2,4})\b/);let date=null;
+  if(dm){const y=dm[3].length===2?'20'+dm[3]:dm[3],iso=`${y}-${pad(+dm[2])}-${pad(+dm[1])}`;if(/^\d{4}-\d\d-\d\d$/.test(iso)&&iso<=TODAY&&iso>=S.startDate)date=iso}
+  const shop=SHOPS.find(s=>kwHit(text,s.toLowerCase()))||'';
+  return {amount:total,date,shop,amounts:[...new Set([total,...all].filter(v=>v>0))].slice(0,5)};
+}
+function grocScan(){
+  const inp=document.createElement('input');inp.type='file';inp.accept='image/*';
+  inp.onchange=async()=>{const picked=inp.files[0];if(!picked)return;
+    let file;try{const buf=await picked.arrayBuffer();file=new File([buf],picked.name||'bon',{type:/^image\//.test(picked.type)?picked.type:sniffType(buf)})}catch(e){snack('Das Foto konnte nicht gelesen werden.');return}
+    openSheet('Kassenbon',`<div class="stack"><div id="rbStatus" class="sub"><span style="display:flex;gap:10px;align-items:center"><span class="spinner"></span>Kassenbon wird gelesen …</span></div></div>`,'',()=>true);
+    try{const data=await ocr(file,t=>{const e=$('#rbStatus');if(e)e.innerHTML=`<span style="display:flex;gap:10px;align-items:center"><span class="spinner"></span>${esc(t)}</span>`});
+      const r=parseReceipt(data);
+      grocFinish({...r,note:r.amount?`Vom Kassenbon gelesen${r.shop?' ('+esc(r.shop)+')':''}. Prüf kurz den Betrag.`:'Den Gesamtbetrag konnte ich nicht sicher lesen – bitte selbst eintragen.'});
+    }catch(e){grocFinish({note:'Der Kassenbon konnte nicht gelesen werden – trag den Betrag bitte selbst ein.'})}
+  };
+  inp.click();
+}
+
 /* ---------- Warenkorb: Produkte, die du als Nächstes zusammen kaufen willst ----------
    Gespeichert in S.cart = {ids:[Produkt-IDs], ship: Versandkosten in €}. Zählt nicht im Kontostand, bis du „Alles gekauft“ tippst. */
 function cartIds(){S.cart=S.cart||{ids:[],ship:0};S.cart.ids=(S.cart.ids||[]).filter(id=>S.wish.some(w=>w.id===id));return S.cart.ids}
@@ -2712,6 +2876,7 @@ function cartSheet(){
     <div id="cVerdict"></div>
     <div><div class="label" style="margin-bottom:4px">Dein Kontostand mit und ohne Warenkorb</div><div class="chart" id="cartChart" style="height:210px"></div><div class="legend"></div></div>
     <div id="cStats"></div>
+    <div id="cPlan"><button class="btn full" type="button" data-act="cartPlan">Auf Termine verteilen (immer über der Warnschwelle)</button></div>
     <label class="check"><input type="checkbox" id="cDone" checked>Schon bezahlt (abhaken)</label>
     <div class="msg" role="alert"></div></div>`,
    `<button class="btn" type="button" data-act="cartClear">Leeren</button><span class="sp"></span><button class="btn primary" value="save">Alles gekauft – eintragen</button>`,
@@ -2742,30 +2907,63 @@ function cartSheet(){
       ${months.map(mo=>{const o=C.months.find(c=>c.m===mo.m);return `<tr><td>${esc(mName(mo.m))}</td><td class="${o?cls(o.end):''}">${o?eur(o.end):'–'}</td><td class="${cls(mo.end)}"><b>${eur(mo.end)}</b></td></tr>`}).join('')}</tbody></table>
      <p class="sub" style="margin:4px 0 0">Rot: unter 0 €, orange: unter deiner Warnschwelle von ${eur(thr)}.</p>`;
   };
-  $('#cShip').oninput=()=>{const v=parseNum($('#cShip').value);S.cart.ship=isNaN(v)||v<0?0:Math.round(v*100)/100;save();upd()};
+  $('#cShip').oninput=()=>{const v=parseNum($('#cShip').value);S.cart.ship=isNaN(v)||v<0?0:Math.round(v*100)/100;save();upd();if($('#cPlan').__plan)showCartPlan()};
   $('#cDate').onchange=()=>{view.cartDate=$('#cDate').value;upd()};
   upd();
 }
-/* Alles gekauft: jedes Produkt (und die Versandkosten) als Ausgabe eintragen und von der Einkaufsliste nehmen */
+/* Produkte des Warenkorbs als Ausgaben eintragen. plan: [{w,date}] (jedes Produkt an seinem Termin), Versand am ersten Termin */
+function cartCommit(plan,ship,done,msg){
+  const dates=plan.map(p=>p.date).sort(),first=dates[0];
+  Promise.all(plan.map(p=>thumbFromDataURL(wishImg.get(p.w.id)))).then(ths=>{
+    commit(()=>{
+      plan.forEach((p,i)=>{const m=p.date.slice(0,7),day=+p.date.slice(8);if(m>S.lastMonth)S.lastMonth=m;
+        const b={id:uid(),month:m,day,desc:p.w.name,amount:-(p.w.price||0),cat:EXP_CATS.includes(p.w.cat)?p.w.cat:guessCatTx(p.w.name+' '+(p.w.shop||''),-1),done,src:'wish',ord:placeOrd(m,day)};
+        if(ths[i])b.thumb=ths[i];S.bookings.push(b)});
+      if(ship>0)S.bookings.push({id:uid(),month:first.slice(0,7),day:+first.slice(8),desc:'Versandkosten',amount:-ship/100,cat:'Sonstiges',done,src:'wish',ord:placeOrd(first.slice(0,7),+first.slice(8))});
+      // Auswahl-Gruppen: so viele gekauft wie gewünscht → Rest der Gruppe entfernen, sonst gewünschte Anzahl verringern
+      const bought=new Set(plan.map(p=>p.w.id)),groups=new Map();
+      plan.forEach(({w})=>{if(!w.group)return;const k=groupKey(w.group),o=groups.get(k)||{g:w.group,n:0};o.n++;groups.set(k,o)});
+      for(const {g,n} of groups.values()){const want=groupWant(g);if(n>=want)S.wish=S.wish.filter(x=>groupKey(x.group)!==groupKey(g));else setGroupWant(g,want-n)}
+      S.wish=S.wish.filter(x=>!bought.has(x.id));S.cart={ids:[],ship:0};view.month=first.slice(0,7);
+    },msg);
+    setTab('buchungen');
+  });
+}
+/* Alles gekauft: jedes Produkt (und die Versandkosten) am gewählten Tag als Ausgabe eintragen */
 function cartBuy(){
   const {items,ship}=cartTotals(),date=$('#cDate').value,done=$('#cDone').checked;
   if(!items.length)return showErr('Der Warenkorb ist leer.');
   if(!date||date<S.startDate)return showErr('Bitte ein Datum innerhalb deiner Planung wählen.');
-  const m=date.slice(0,7),day=+date.slice(8);
-  Promise.all(items.map(w=>thumbFromDataURL(wishImg.get(w.id)))).then(ths=>{
-    commit(()=>{
-      if(m>S.lastMonth)S.lastMonth=m;
-      items.forEach((w,i)=>{const b={id:uid(),month:m,day,desc:w.name,amount:-(w.price||0),cat:EXP_CATS.includes(w.cat)?w.cat:guessCatTx(w.name+' '+(w.shop||''),-1),done,src:'wish',ord:placeOrd(m,day)};
-        if(ths[i])b.thumb=ths[i];S.bookings.push(b)});
-      if(ship>0)S.bookings.push({id:uid(),month:m,day,desc:'Versandkosten',amount:-ship/100,cat:'Sonstiges',done,src:'wish',ord:placeOrd(m,day)});
-      // Auswahl-Gruppen: so viele gekauft wie gewünscht → Rest der Gruppe entfernen, sonst gewünschte Anzahl verringern
-      const bought=new Set(items.map(w=>w.id)),groups=new Map();
-      items.forEach(w=>{if(!w.group)return;const k=groupKey(w.group),o=groups.get(k)||{g:w.group,n:0};o.n++;groups.set(k,o)});
-      for(const {g,n} of groups.values()){const want=groupWant(g);if(n>=want)S.wish=S.wish.filter(x=>groupKey(x.group)!==groupKey(g));else setGroupWant(g,want-n)}
-      S.wish=S.wish.filter(x=>!bought.has(x.id));S.cart={ids:[],ship:0};view.month=m;
-    },`${items.length} ${items.length===1?'Produkt':'Produkte'}${ship?' + Versand':''} als Ausgaben eingetragen`);
-    setTab('buchungen');
+  cartCommit(items.map(w=>({w,date})),ship,done,`${items.length} ${items.length===1?'Produkt':'Produkte'}${ship?' + Versand':''} als Ausgaben eingetragen`);
+}
+/* Kauf verteilen: jedes Produkt (in Warenkorb-Reihenfolge) an den frühesten Termin legen, an dem dein Kontostand
+   im ganzen Plan über der Warnschwelle bleibt – mit allen schon verteilten Produkten zusammen gerechnet */
+function cartPlan(){
+  const {items,ship}=cartTotals(),thr=thrC(),dates=buyDates(),extra=[],plan=[];
+  items.forEach((w,i)=>{
+    const p=cents(w.price||0)+(i===0?ship:0);let spot=null;
+    for(const d of dates){
+      const x={id:'__p'+i,month:d.m,day:d.day,desc:w.name,amount:-p/100,cat:'Sonstiges',ord:(d.ord??placeOrd(d.m,d.day))+i*1e-4};
+      // ab jedem verteilten Kauf muss der Kontostand über der Warnschwelle bleiben (Tiefpunkte davor zählen nicht)
+      const all=extra.concat(x),R=compute(false,all),lows=all.map(e=>lowest(R,e.id)).filter(Boolean);
+      if(lows.every(l=>l.bal>=thr)){extra.push(x);spot=d;break}
+    }
+    plan.push({w,d:spot,p});
   });
+  return plan;
+}
+function showCartPlan(){
+  const plan=cartPlan(),el=$('#cPlan');if(!el)return;
+  const ok=plan.filter(p=>p.d),by=new Map();ok.forEach(p=>{const k=p.d.date;by.set(k,[...(by.get(k)||[]),p])});
+  const lowO=lowest(C,null);
+  el.innerHTML=`<div class="cplan"><div class="label" style="margin-bottom:6px">Vorschlag: so bleibst du immer über ${eur(thrC())}</div>
+    ${[...by.entries()].sort().map(([d,ps])=>`<div class="cplan-d"><div class="cplan-h"><b>${d===defaultBuyDate()?'Heute':shortD(d)+(ps[0].d.after?' · nach „'+esc(ps[0].d.after)+'“':'')}</b><b>${eur(ps.reduce((s,p)=>s+p.p,0))}</b></div>
+      ${ps.map(p=>`<div class="sub">• ${esc(p.w.name)}</div>`).join('')}</div>`).join('')}
+    ${plan.filter(p=>!p.d).length?`<div class="cplan-d bad"><div class="cplan-h"><b>Im Plan nicht möglich</b></div>${plan.filter(p=>!p.d).map(p=>`<div class="sub">• ${esc(p.w.name)}</div>`).join('')}
+      <div class="sub" style="margin-top:4px">${lowO&&lowO.bal<thrC()?'Bis zum Planende ist dafür nicht genug Puffer über der Warnschwelle.':'Dafür reicht das Geld bis '+esc(mName(S.lastMonth))+' nicht.'}</div></div>`:''}
+    ${ok.length?`<button class="btn tonal full" type="button" data-act="cartPlanApply" style="margin-top:8px">So als geplante Käufe eintragen</button>
+      <p class="sub" style="margin:6px 0 0">Die Produkte kommen als offene Ausgaben an ihren Termin in den Plan und verlassen die Einkaufsliste. Abhaken, wenn du wirklich gekauft hast.</p>`:''}</div>`;
+  el.__plan=plan;
 }
 
 /* „+ Produkt“: Screenshot, Link oder von Hand */
@@ -3110,6 +3308,17 @@ document.addEventListener('contextmenu',e=>{if(e.target.closest('.wglist'))e.pre
 /* Links, die aus anderen Apps geteilt wurden („Teilen“ → Finanzplaner) */
 function handleShareTarget(){
   const sp=new URLSearchParams(location.search),u=extractUrl(sp.get('url')||sp.get('text')||'');
+  // App-Kurzbefehle (langes Drücken auf das App-Symbol): ?do=…
+  const doA=sp.get('do');
+  if(doA){history.replaceState(null,'',location.pathname);
+    const groc=()=>{view.wishMode='groc';setTab('einkauf');renderWish()};
+    if(doA==='shot'){view.wishMode='wish';setTab('einkauf');renderWish();wishAddChooser()}
+    else if(doA==='cart'){view.wishMode='wish';setTab('einkauf');renderWish();if(cartIds().length)cartSheet();else snack('Der Warenkorb ist leer')}
+    else if(doA==='groc'){groc();setTimeout(()=>{const n=$('#gName');if(n)n.focus()},300)}
+    else if(doA==='bon'){groc();openSheet('Kassenbon scannen',`<div class="stack"><p class="sub" style="margin:0">Fotografiere den Kassenbon oder wähle ein Foto aus. Betrag, Datum und Laden werden gelesen und mit deinem geplanten Einkauf verrechnet.</p>
+      <button class="btn primary full" type="button" data-act="grocScan">Foto vom Kassenbon wählen</button></div>`,'',()=>true)}
+    else if(doA==='fix'){setTab('start');fixBalSheet()}
+    return}
   if(!u)return;
   history.replaceState(null,'',location.pathname);
   setTab('einkauf');linkSheet(u,sp.get('title')||'');setTimeout(()=>form.requestSubmit($('#lGo')),200);

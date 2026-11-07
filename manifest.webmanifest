@@ -16,6 +16,12 @@
     "method": "GET",
     "params": { "title": "title", "text": "text", "url": "url" }
   },
+  "shortcuts": [
+    { "name": "Screenshot hinzufügen", "short_name": "Screenshot", "description": "Produkt per Screenshot zur Einkaufsliste", "url": "./?do=shot", "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "Warenkorb", "short_name": "Warenkorb", "description": "Warenkorb öffnen", "url": "./?do=cart", "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "Kassenbon scannen", "short_name": "Kassenbon", "description": "Einkauf per Kassenbon eintragen", "url": "./?do=bon", "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "Kontostand korrigieren", "short_name": "Kontostand", "description": "Echten Kontostand eintragen", "url": "./?do=fix", "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }] }
+  ],
   "icons": [
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
