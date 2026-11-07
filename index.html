@@ -1178,9 +1178,10 @@ async function prepImage(file,maxW){
   // Farbige Kopie (klein) für Layout-Analyse: rote/fette Preise, Produktfoto
   try{const k=Math.min(1,900/W),cc=document.createElement('canvas');cc.width=Math.round(W*k);cc.height=Math.round(H*k);
     cc.getContext('2d',{willReadFrequently:true}).drawImage(bmp,0,0,cc.width,cc.height);c.__color=cc}catch(e){}
-  const im=x.getImageData(0,0,c.width,c.height),d=im.data;let sum=0;
-  for(let i=0;i<d.length;i+=4){const g=.299*d[i]+.587*d[i+1]+.114*d[i+2];d[i]=d[i+1]=d[i+2]=g;sum+=g}
-  if(sum/(d.length/4)<110)for(let i=0;i<d.length;i+=4){d[i]=d[i+1]=d[i+2]=255-d[i]}
+  const im=x.getImageData(0,0,c.width,c.height),d=im.data;let sum=0,bright=0;
+  for(let i=0;i<d.length;i+=4){const g=.299*d[i]+.587*d[i+1]+.114*d[i+2];d[i]=d[i+1]=d[i+2]=g;sum+=g;if(g>170)bright++}
+  // Nur echte Dunkel-Screenshots umkehren (wenig Helles) – nicht z. B. ein Kassenbon-Foto auf dunklem Untergrund
+  if(sum/(d.length/4)<110&&bright/(d.length/4)<.15)for(let i=0;i<d.length;i+=4){d[i]=d[i+1]=d[i+2]=255-d[i]}
   x.putImageData(im,0,0);return c;
 }
 const P_BAD=/uvp|statt|vorher|ursprüngl|versand|liefer|grundpreis|\/\s?(kg|l|100\s?g|100\s?ml|stk|st|m)\b|pro\s?(kg|liter|stück)|\bje\b|rate|monatl|mtl|\/\s?monat|spar|ersparnis|rabatt|gutschein|%|bewertung|zzgl/i;
@@ -2900,48 +2901,137 @@ function grocPricesSheet(){
       <span class="gdel" data-act="grocPriceDel" data-k="${esc(k)}" role="button" tabindex="0" aria-label="${esc(p.name)} vergessen">✕</span></div>`).join('')||'<p class="sub">Noch keine.</p>'}</div></div>`,
    `<span class="sp"></span><button class="btn primary" value="save">Fertig</button>`,()=>true);
 }
-/* Kassenbon: Gesamtbetrag, Datum, Laden und einzelne Artikel per Texterkennung lesen */
+/* Kassenbon: Gesamtbetrag, Datum, Laden und einzelne Artikel aus dem erkannten Text lesen.
+   Prüft sich selbst: Ergeben die Artikel zusammen genau einen der möglichen Gesamtbeträge, ist der richtig (Lesefehler wie 3↔8↔9 fallen so auf). */
 function parseReceipt(data){
   const lines=String(data.text||'').split('\n').map(s=>s.trim()).filter(Boolean),text=lines.join('\n');
-  // Beträge (nicht Teile eines Datums wie „07.11.26“ oder einer Uhrzeit)
+  // Beträge (nicht Teile eines Datums wie „07.11.26“); „32, 35“ (Lücke nach dem Komma) wird auch erkannt
   const nums=s=>[...s.replace(/\b\d{1,2}[.\/]\d{1,2}[.\/]\d{2,4}\b/g,' ').matchAll(/(?<![\d.,])(\d{1,4})\s?[,.]\s?(\d{2})(?![\d.,])/g)].map(m=>+m[1]+ +m[2]/100);
-  const bad=/mwst|netto|steuer|ust|rückgeld|ruckgeld|zurück|gegeben|bar\b|pfand|rabatt|ersparnis|gespart|%/i;
-  let total=null;const cands=[];
-  for(const [prio,rx] of [[3,/zu zahlen|zahlbetrag|gesamtbetrag/i],[2,/^\s*(summe|gesamt|total|betrag)\b|\bsumme\s*(eur|€)/i],[1,/summe|gesamt|total/i],[1,/(\bec\b|karte|kartenzahlung|girocard|visa|mastercard)/i]]){
-    lines.forEach(l=>{if(rx.test(l)&&!/zwischen/i.test(l)){const n=nums(l);if(n.length)cands.push({v:n.at(-1),prio})}})}
-  cands.sort((a,b)=>b.prio-a.prio);if(cands.length)total=cands[0].v;
-  const all=[...new Set(lines.filter(l=>!bad.test(l)).flatMap(nums))].filter(v=>v>0&&v<2000).sort((a,b)=>b-a);
-  if(total==null&&all.length)total=all[0];
+  // Summen- und Zahlungszeilen auch bei Lesefehlern erkennen („SUMNE“, „5UMME“): Wort am Zeilenanfang mit höchstens 1 falschen Buchstaben
+  const SUMW=['summe','gesamt','gesamtsumme','zwischensumme','total','zahlen','zahlbetrag','betrag','kartenzahlung','girocard','gegeben','rückgeld','ruckgeld','mwst','netto','brutto','steuer','mastercard'];
+  const lev=(a,b)=>{const d=Array.from({length:b.length+1},(_,i)=>i);for(let i=1;i<=a.length;i++){let p=d[0];d[0]=i;for(let j=1;j<=b.length;j++){const t=d[j];d[j]=Math.min(d[j]+1,d[j-1]+1,p+(a[i-1]===b[j-1]?0:1));p=t}}return d[b.length]};
+  const words=l=>l.toLowerCase().replace(/5/g,'s').replace(/0/g,'o').replace(/[1|]/g,'l').replace(/rn/g,'m').split(/[^a-zäöüß]+/).filter(Boolean);
+  const isSumLine=l=>words(l).filter((w,i,a)=>i===0||(i===1&&a[0].length<4)).some(w=>w.length>=4&&SUMW.some(k=>Math.abs(k.length-w.length)<=1&&lev(w,k)<=1));
+  const isPayLine=l=>/preis\b|summe|gesamt|zu zahlen|zahlbetrag|total|\bec\b|karte|kartenzahl|girocard|visa|mastercard|\bbar\b/i.test(l)||isSumLine(l);
+  const notTotal=/mwst|netto|steuer|brutto|gegeben|r(ü|ue|u)ckgeld|zur(ü|u)ck|rabatt|ersparnis|gespart|%/i;
+  // Mögliche Gesamtbeträge mit Gewicht: „Zu zahlen“ > „Summe“/„ALDI PREIS“ > Kartenzahlung …; mehrfach auftauchende Beträge zählen mehr
+  const cand=new Map(),addC=(v,w)=>{if(v>0&&v<5000)cand.set(v,(cand.get(v)||0)+w)};
+  for(const l of lines){
+    if(notTotal.test(l))continue;const n=nums(l);if(!n.length)continue;const v=n.at(-1);
+    if(/zu zahlen|zahlbetrag|gesamtbetrag/i.test(l))addC(v,4);
+    else if(/^\s*(summe|gesamt|total|betrag)\b|\bsumme\s*(eur|€)|\b[a-zäöü]+\s*preis\b/i.test(l))addC(v,3);
+    else if(isSumLine(l))addC(v,2.5);
+    else if(isPayLine(l))addC(v,1.5);
+  }
+  const all=[...new Set(lines.filter(l=>!notTotal.test(l)).flatMap(nums))].filter(v=>v>0&&v<2000).sort((a,b)=>b-a);
   const dm=text.match(/\b(\d{1,2})\.(\d{1,2})\.(\d{2,4})\b/);let date=null;
   if(dm){const y=dm[3].length===2?'20'+dm[3]:dm[3],iso=`${y}-${pad(+dm[2])}-${pad(+dm[1])}`;if(/^\d{4}-\d\d-\d\d$/.test(iso)&&iso<=TODAY&&iso>=S.startDate)date=iso}
   const shop=SHOPS.find(s=>kwHit(text,s.toLowerCase()))||'';
-  // Einzelne Artikel: Zeilen „Name … 1,19 B“ – ohne Summen-, Zahlungs- und Steuerzeilen; nur bis zur Summe
-  const stop=/^\s*(summe|gesamt|total|zu zahlen|zahlbetrag|betrag)\b|zwischensumme|gesamtsumme|mwst|netto|brutto|steuer|ust\b|rückgeld|ruckgeld|gegeben|geg\.|ec[- ]?karte|kartenzahlung|girocard|visa|mastercard|\bbar\b|^eur|kasse|filiale|datum|uhrzeit|tel\.|www|danke|posten|bon-?nr|beleg|terminal|trace/i;
-  // Summen- und Zahlungszeilen auch bei Lesefehlern erkennen („SUMNE“, „5UMME“, „Gesamtsurnme“): Wörter mit höchstens 1 falschen Buchstaben
-  const SUMW=['summe','gesamt','gesamtsumme','zwischensumme','total','zahlen','zahlbetrag','betrag','kartenzahlung','girocard','gegeben','rückgeld','ruckgeld','mwst','netto','brutto','steuer','mastercard'];
-  const lev=(a,b)=>{const d=Array.from({length:b.length+1},(_,i)=>i);for(let i=1;i<=a.length;i++){let p=d[0];d[0]=i;for(let j=1;j<=b.length;j++){const t=d[j];d[j]=Math.min(d[j]+1,d[j-1]+1,p+(a[i-1]===b[j-1]?0:1));p=t}}return d[b.length]};
-  const isSumLine=l=>l.toLowerCase().replace(/5/g,'s').replace(/0/g,'o').replace(/[1|]/g,'l').replace(/rn/g,'m').split(/[^a-zäöüß]+/).filter(Boolean).filter((w,i,a)=>i===0||(i===1&&a[0].length<4))  // nur am Zeilenanfang (z. B. „Summe“, „Zu zahlen“) – „Waschmittel Total Care“ ist ein Artikel
-    .some(w=>w.length>=4&&SUMW.some(k=>Math.abs(k.length-w.length)<=1&&lev(w,k)<=1));
-  // Keine klare Summenzeile? Dann die erste (auch verlesene) Summenzeile – nicht Rückgeld, Gegeben oder Steuer
-  {const c2=lines.filter(l=>isSumLine(l)&&!/mwst|netto|steuer|brutto|gegeben|r(ü|ue|u)ckgeld|zur(ü|u)ck/i.test(l)).map(l=>nums(l).at(-1)).filter(v=>v>0);if(c2.length&&!cands.some(c=>c.prio>=2))total=c2[0]}
-  const items=[];let qty=null,run=0;
+  // Einzelne Artikel: Zeilen „[Artikelnr.] Name … 1,19 A“ – ohne Summen-, Zahlungs- und Steuerzeilen; nur bis zur Summe
+  const stop=/^\s*(summe|gesamt|total|zu zahlen|zahlbetrag|betrag)\b|zwischensumme|gesamtsumme|\bpreis\s+\d|mwst|netto|brutto|steuer|ust\b|rückgeld|ruckgeld|gegeben|geg\.|ec[- ]?karte|kartenzahl|girocard|visa|mastercard|\bbar\b|^eur|kasse|filiale|datum|uhrzeit|tel\.|www|danke|posten|bon-?nr|beleg|terminal|trace|artikel\s*$/i;
+  const firstTotal=[...cand.entries()].sort((a,b)=>b[1]-a[1])[0];
+  const items=[];let qty=null,qtyN=null,run=0;
   for(const l of lines){
     // Ab der Summe kommen keine Artikel mehr
-    if(/^\s*(summe|gesamt|total|zu zahlen)/i.test(l)||(items.length&&isSumLine(l)&&nums(l).length))break;
-    const q=l.match(/^\s*(\d{1,2})\s*[xX*×]\s*(\d{1,3})\s?[,.]\s?(\d{2})\b/);   // Mengenzeile „2 x 1,19“
-    if(q&&!/[a-zäöüß]{2}/i.test(l.replace(/\bx\b/i,''))){qty={n:+q[1],unit:+q[2]+ +q[3]/100};continue}
-    const m=l.match(/^(.*?[a-zäöüß].*?)\s+(-?)(\d{1,4})\s?[,.]\s?(\d{2})\s*[a-z0-9*]{0,2}\s*$/i);
-    if(!m||stop.test(l)||m[2]==='-'||isSumLine(l)){qty=null;continue}
-    let name=m[1].replace(/^\d{3,}\s+/,'').replace(/\s+\d+\s*[xX*×]\s*$/,'').replace(/\s{2,}/g,' ').trim();
-    if(!/[a-zäöüß]{2}/i.test(name)){qty=null;continue}
-    const price=+m[3]+ +m[4]/100,inl=name.match(/^(\d{1,2})\s*[xX*×]\s+(.+)$/);
+    if(items.length&&(/^\s*(summe|gesamt|total|zu zahlen)/i.test(l)||/\bpreis\b/i.test(l)&&nums(l).length||isSumLine(l)&&nums(l).length))break;
+    // Mengenzeilen: „2 x 2,99“ – oder über zwei Zeilen verteilt („2 x“ und darunter „2,99“)
+    const q=l.match(/^\s*(\d{1,2})\s*[xX*×]\s*(\d{1,3})\s?[,.]\s?(\d{2})\s*$/);if(q){qty={n:+q[1],unit:+q[2]+ +q[3]/100};continue}
+    const qn=l.match(/^\s*(\d{1,2})\s*[xX*×]\s*$/);if(qn){qtyN=+qn[1];continue}
+    const po=l.match(/^\s*(\d{1,3})\s?[,.]\s?(\d{2})\s*$/);if(po&&qtyN){qty={n:qtyN,unit:+po[1]+ +po[2]/100};qtyN=null;continue}
+    // Preis am Zeilenende: „1,19“ – auch verlesen als „0:25“, „0;25“ oder ohne Komma „025“ (nur bei 0,xx sicher); dahinter Steuerklasse A/B und Lese-Krümel
+    const m=l.match(/^(.*?[a-zäöüß].*?)\s+(-?)(?:(\d{1,4})\s?[,.:;]\s?|(0))(\d{2})\s*[°'"`´]?\s*[a-z0-9*]{0,2}\s*$/i);
+    if(!m||stop.test(l)||m[2]==='-'||isSumLine(l)){if(!po)qty=null;continue}
+    // Namen säubern: Artikelnummern und Lese-Krümel vorne, Striche/Klammern hinten
+    let name=m[1].replace(/^[^a-zäöüß]*?\d{4,}[\s\-–]*/i,'').replace(/^[\W\d_]+(?=[a-zäöüß])/i,'').replace(/\s+\d+\s*[xX*×]\s*$/,'').replace(/[\s|(){}\[\]<>_~'"`´,;:]+$/,'').replace(/\s{2,}/g,' ').replace(/^([A-ZÄÖÜ]) (?=[a-zäöüß]{3,})/,'$1').trim();  // „P fand“ → „Pfand“
+    // Kein echter Name (z. B. verlesene Mengenzeile „Rx 2,99“ aus „2 x 2,99“): höchstens 2 Buchstaben → kein Artikel
+    if(!/[a-zäöüß]{2}/i.test(name)||(name.match(/[a-zäöüß]/gi)||[]).length<=2){const pq=name.match(/^\s*(\d{1,2})?\s*[xX×*]\s*$/);if(pq||/x/i.test(name))qty={n:pq&&pq[1]?+pq[1]:2,unit:+(m[3]??m[4])+ +m[5]/100};else qty=null;continue}
+    const price=+(m[3]??m[4])+ +m[5]/100,inl=name.match(/^(\d{1,2})\s*[xX*×]\s+(.+)$/);
     const n=qty?qty.n:inl?+inl[1]:1;if(inl)name=inl[2];
-    // Preis = Summe aller bisherigen Artikel → das ist die (Zwischen-)Summe, kein Artikel. Ebenso eine Zeile mit genau dem Bon-Gesamtbetrag
+    // Preis = Summe aller bisherigen Artikel (oder der Bon-Gesamtbetrag) → das ist die Summe, kein Artikel
     if(items.length>=2&&Math.round(price*100)===Math.round(run*100))break;
-    if(total!=null&&items.length>=1&&Math.abs(price-total)<.005&&price>=run*.9)break;
+    if(firstTotal&&items.length>=1&&Math.abs(price-firstTotal[0])<.005&&price>=run*.9)break;
     items.push({name:name.slice(0,40),price,qty:n,unit:qty?qty.unit:Math.round(price/n*100)/100,pfand:/pfand|leergut/i.test(name)});qty=null;run+=price;
   }
-  return {amount:total,date,shop,items,amounts:[...new Set([total,...all].filter(v=>v>0))].slice(0,5)};
+  const itemSum=Math.round(items.reduce((s,x)=>s+x.price,0)*100)/100;
+  // Selbstkontrolle: Gesamtbetrag = Summe der Artikel? Dann ist er sicher richtig
+  let total=null,sumOk=false;
+  if(items.length&&cand.has(itemSum)){total=itemSum;sumOk=true}
+  else if(items.length>=2&&[...cand.keys()].some(v=>{const a=String(Math.round(v*100)),b=String(Math.round(itemSum*100));return a.length===b.length&&[...a].filter((c,i)=>c!==b[i]).length===1})){total=itemSum;sumOk=true}  // nur 1 Ziffer verlesen (3↔8↔9)
+  else if(!cand.size&&items.length>=2&&all.some(v=>Math.round(v*100)===Math.round(itemSum*100))){total=itemSum;sumOk=true}  // Betrag ohne Stichwort, passt genau
+  else if(firstTotal)total=firstTotal[0];
+  else if(all.length)total=all[0];
+  return {amount:total,date,shop,items,itemSum,sumOk,amounts:[...new Set([total,...cand.keys(),...all].filter(v=>v>0))].slice(0,5)};
+}
+/* Kassenbon-Foto für die Texterkennung vorbereiten: weißes Papier finden und zuschneiden, Schrift scharf schwarz/weiß machen
+   (gleicht Schatten und Knicke aus) – mode 'bin' = schwarz/weiß, 'gray' = nur Graustufen */
+async function prepReceipt(file,mode){
+  const bmp=await decodeImage(file),W=imgW(bmp),H=imgH(bmp);
+  // 1) Papier finden (auf kleiner Kopie): helle, farblose Bereiche
+  const k=Math.min(1,600/Math.max(W,H)),sw=Math.round(W*k),sh=Math.round(H*k),c0=document.createElement('canvas');c0.width=sw;c0.height=sh;
+  const x0=c0.getContext('2d',{willReadFrequently:true});x0.drawImage(bmp,0,0,sw,sh);const d0=x0.getImageData(0,0,sw,sh).data;
+  const isPaper=i=>{const r=d0[i],g=d0[i+1],b=d0[i+2];return (r+g+b)/3>140&&Math.max(r,g,b)-Math.min(r,g,b)<40};
+  const rows=new Float32Array(sh),cols=new Float32Array(sw);
+  for(let y=0;y<sh;y++)for(let x=0;x<sw;x++)if(isPaper((y*sw+x)*4)){rows[y]++;cols[x]++}
+  const span=(arr,len,other)=>{let a=0,b=len-1;while(a<len&&arr[a]<other*.25)a++;while(b>a&&arr[b]<other*.25)b--;return [a,b]};
+  const colMax=Math.max(...cols),rowMax=Math.max(...rows);
+  let [ya,yb]=span(rows,sh,rowMax),[xa,xb]=span(cols,sw,colMax);
+  if(xb-xa<sw*.2||yb-ya<sh*.2){xa=0;xb=sw-1;ya=0;yb=sh-1}  // kein Papier gefunden: ganzes Bild
+  const pad=.01,cx=Math.max(0,(xa/sw-pad))*W,cy=Math.max(0,(ya/sh-pad))*H,cw=Math.min(W-cx,((xb-xa)/sw+2*pad)*W),ch=Math.min(H-cy,((yb-ya)/sh+2*pad)*H);
+  // 2) Zuschneiden und auf gute Textgröße bringen (Bon-Breite ca. 1300 px), höchstens ca. 6 Megapixel
+  let s=1300/cw;s=Math.min(s,2.5,Math.sqrt(6e6/(cw*ch)));
+  const c=document.createElement('canvas');c.width=Math.round(cw*s);c.height=Math.round(ch*s);
+  const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(bmp,cx,cy,cw,ch,0,0,c.width,c.height);
+  const im=x.getImageData(0,0,c.width,c.height),d=im.data,w=c.width,h=c.height,g=new Uint8ClampedArray(w*h);
+  for(let i=0,j=0;i<d.length;i+=4,j++)g[j]=.299*d[i]+.587*d[i+1]+.114*d[i+2];
+  if(mode==='bin'){
+    // Adaptiver Schwellwert (Bradley): Pixel dunkler als 85 % des Umgebungs-Mittelwerts = Schrift
+    const I=new Float64Array((w+1)*(h+1)),r=Math.max(8,Math.round(w/40));
+    for(let y=1;y<=h;y++){let rs=0;for(let x1=1;x1<=w;x1++){rs+=g[(y-1)*w+x1-1];I[y*(w+1)+x1]=I[(y-1)*(w+1)+x1]+rs}}
+    for(let y=0;y<h;y++)for(let x1=0;x1<w;x1++){
+      const ya1=Math.max(0,y-r),yb1=Math.min(h,y+r+1),xa1=Math.max(0,x1-r),xb1=Math.min(w,x1+r+1);
+      const sum=I[yb1*(w+1)+xb1]-I[ya1*(w+1)+xb1]-I[yb1*(w+1)+xa1]+I[ya1*(w+1)+xa1],mean=sum/((yb1-ya1)*(xb1-xa1));
+      const v=g[y*w+x1]<mean*.85?0:255,o=(y*w+x1)*4;d[o]=d[o+1]=d[o+2]=v}
+  }else for(let j=0,i=0;j<g.length;j++,i+=4)d[i]=d[i+1]=d[i+2]=g[j];
+  x.putImageData(im,0,0);return c;
+}
+/* Kassenbon lesen: bis zu drei Versuche, der beste gewinnt (Artikel ergeben genau die Summe > mehr Artikel) */
+async function ocrReceipt(file,progress){
+  if(!window.Tesseract){try{await loadScript('tesseract/tesseract.min.js')}catch(e){await loadScript(OCR_CDN)}}
+  ocrProgress=progress;
+  if(!ocrWorker){progress('Texterkennung wird vorbereitet (nur beim ersten Mal) …');ocrWorker=await makeOcrWorker()}
+  const tries=[['gray','4','Kassenbon wird gelesen …'],['gray','6','Zweiter Leseversuch …'],['bin','6','Dritter Leseversuch …']];
+  let best=null;const runs=[];
+  for(const [mode,psm,msg] of tries){
+    progress(msg);
+    try{const canvas=await prepReceipt(file,mode);await ocrWorker.setParameters({tessedit_pageseg_mode:psm,preserve_interword_spaces:'1'});
+      const {data}=await ocrWorker.recognize(canvas),r=parseReceipt(data),score=(r.sumOk?100:0)+r.items.length;runs.push(r);
+      if(!best||score>best.score)best={r,data,score};
+      if(r.sumOk&&r.items.length>=2)break;   // stimmt auf den Cent – fertig
+    }catch(e){console.warn('Leseversuch fehlgeschlagen',e)}
+  }
+  try{await ocrWorker.setParameters({tessedit_pageseg_mode:'3'})}catch(e){}
+  if(!best){const data=await ocr(file,progress);return parseReceipt(data)}
+  return repairReceipt(best.r,runs);
+}
+/* Reparatur, wenn die Artikel nicht genau die Summe ergeben:
+   zu viel → ein Artikel, dessen Preis genau der Überschuss ist, war wohl kein Artikel;
+   zu wenig → fehlende Artikel aus den anderen Leseversuchen ergänzen, deren Preis(e) genau die Lücke füllen */
+function repairReceipt(r,runs){
+  if(r.sumOk||!r.amount||!r.items.length)return r;
+  const C=v=>Math.round(v*100),diff=C(r.amount)-C(r.itemSum),items=r.items.slice();
+  const done=list=>{const s=list.reduce((a,x)=>a+x.price,0);return {...r,items:list,itemSum:Math.round(s*100)/100,sumOk:true}};
+  if(diff<0){const i=items.findIndex(x=>C(x.price)===-diff);if(i>=0){items.splice(i,1);return done(items)}}
+  if(diff>0){
+    // Kandidaten: Artikel aus anderen Versuchen, die hier fehlen (gleicher Preis ist öfter da als hier → einer fehlt)
+    const have=new Map();items.forEach(x=>have.set(C(x.price),(have.get(C(x.price))||0)+1));
+    const pool=[];
+    for(const o of runs){if(o===r)continue;const cnt=new Map();
+      o.items.forEach((x,idx)=>{const k=C(x.price);cnt.set(k,(cnt.get(k)||0)+1);if(cnt.get(k)>(have.get(k)||0)&&!pool.some(p=>p.k===k&&p.n===cnt.get(k)))pool.push({k,n:cnt.get(k),x,idx,o})})}
+    const ins=p=>{const prev=p.o.items[p.idx-1],at=prev?items.findIndex(x=>C(x.price)===C(prev.price)&&grocMatch(x.name,prev.name)):-1;items.splice(at>=0?at+1:items.length,0,{...p.x})};
+    const one=pool.find(p=>p.k===diff);if(one){ins(one);return done(items)}
+    for(let a=0;a<pool.length;a++)for(let b=a+1;b<pool.length;b++)if(pool[a].k+pool[b].k===diff){ins(pool[a]);ins(pool[b]);return done(items)}
+  }
+  return r;
 }
 // camera=true: öffnet direkt die Kamera (Rückkamera); sonst Fotoauswahl aus der Galerie
 function grocScan(camera=true){
@@ -2949,9 +3039,9 @@ function grocScan(camera=true){
   inp.onchange=async()=>{const picked=inp.files[0];if(!picked)return;
     let file;try{const buf=await picked.arrayBuffer();file=new File([buf],picked.name||'bon',{type:/^image\//.test(picked.type)?picked.type:sniffType(buf)})}catch(e){snack('Das Foto konnte nicht gelesen werden.');return}
     openSheet('Kassenbon',`<div class="stack"><div id="rbStatus" class="sub"><span style="display:flex;gap:10px;align-items:center"><span class="spinner"></span>Kassenbon wird gelesen …</span></div></div>`,'',()=>true);
-    try{const data=await ocr(file,t=>{const e=$('#rbStatus');if(e)e.innerHTML=`<span style="display:flex;gap:10px;align-items:center"><span class="spinner"></span>${esc(t)}</span>`});
-      const r=parseReceipt(data);
-      grocFinish({...r,note:r.amount?`Vom Kassenbon gelesen${r.shop?' ('+esc(r.shop)+')':''}. Prüf kurz den Betrag.`:'Den Gesamtbetrag konnte ich nicht sicher lesen – bitte selbst eintragen.'});
+    try{const r=await ocrReceipt(file,t=>{const e=$('#rbStatus');if(e)e.innerHTML=`<span style="display:flex;gap:10px;align-items:center"><span class="spinner"></span>${esc(t)}</span>`});
+      const chk=r.items.length?(r.sumOk?` <b class="pos">✓ Die ${r.items.length} Artikel ergeben genau die Summe.</b>`:` <b class="warnc">⚠ Die Artikel ergeben ${eur(cents(r.itemSum))}${r.amount?', der Bon sagt '+eur(cents(r.amount)):''} – vermutlich fehlt oder stimmt ein Artikel nicht. Prüf kurz die Liste.</b>`):'';
+      grocFinish({...r,note:(r.amount?`Vom Kassenbon gelesen${r.shop?' ('+esc(r.shop)+')':''}.`:'Den Gesamtbetrag konnte ich nicht sicher lesen – bitte selbst eintragen.')+chk});
     }catch(e){grocFinish({note:'Der Kassenbon konnte nicht gelesen werden – trag den Betrag bitte selbst ein.'})}
   };
   inp.click();
