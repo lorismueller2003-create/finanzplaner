@@ -296,6 +296,13 @@ main{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px
 .grow.got .gname{text-decoration:line-through;color:var(--muted)}
 .gname{flex:1;min-width:0;overflow-wrap:anywhere}
 .gest{font-size:13px;color:var(--muted);white-space:nowrap}
+.gest.mem{font-style:italic}
+.rbitems{max-height:44vh;overflow:auto;border:1px solid var(--line);border-radius:12px;padding:2px 10px}
+.rbi{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--grid)}
+.rbi:first-child{border-top:0}
+.rbi input[type=checkbox]{width:20px;height:20px;accent-color:var(--accent);flex:none}
+.rbn{flex:1;min-width:0;border:0;border-bottom:1px dashed var(--line);background:none;padding:4px 0}
+.rbp{white-space:nowrap;font-size:13px;font-variant-numeric:tabular-nums}
 .gkeep,.gdel{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;flex:none;cursor:pointer;color:var(--muted);font-size:16px}
 .gkeep.on{background:var(--accent-soft);color:var(--accent);font-weight:700}
 /* Warenkorb-Planer */
@@ -304,6 +311,16 @@ main{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px
 .cplan-d:first-of-type{border-top:0}
 .cplan-h{display:flex;justify-content:space-between;gap:10px}
 .cplan-d.bad .cplan-h b{color:var(--crit)}
+/* Spielraum-Regler im Budget-Kasten */
+.wplay{margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
+.wplay summary{cursor:pointer;font-weight:700;font-size:14px;color:var(--accent);list-style:none;display:flex;align-items:center;gap:8px}
+.wplay summary::-webkit-details-marker{display:none}
+.wplay summary::after{content:"▾";margin-left:auto;transition:transform .15s}
+.wplay[open] summary::after{transform:rotate(180deg)}
+.wplay .prow{display:flex;justify-content:space-between;gap:10px;margin-top:10px;font-size:13px;color:var(--ink-2)}
+.wplay .prow b{white-space:nowrap;color:var(--ink)}
+.wplay input[type=range]{width:100%;accent-color:var(--accent);margin:6px 0 0}
+.badge-try{font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;background:var(--warn-bg);color:var(--warn)}
 /* Produktansicht: ganzer Bildschirm, wischen zum nächsten Produkt der Gruppe */
 dialog.sheet.full{height:100dvh;max-height:100dvh;margin:0 auto;border-radius:0;padding-top:env(safe-area-inset-top,0px)}
 dialog.sheet.full[open]{display:flex;flex-direction:column}
@@ -540,7 +557,7 @@ function syncCats(){
   if(!S.cats.includes('Sonstiges'))S.cats.push('Sonstiges');
   CATS=['Einkommen',...S.cats.filter(c=>c!=='Einkommen')];EXP_CATS=CATS.slice(1);
   S.budgets=S.budgets||{};S.goals=S.goals||[];S.learn=S.learn||{};
-  S.wish=S.wish||[];S.wishLearn=S.wishLearn||{};S.wishGroupMeta=S.wishGroupMeta||{};S.shopLearn=S.shopLearn||{};S.cart=S.cart||{ids:[],ship:0};S.groc=S.groc||{items:[]};
+  S.wish=S.wish||[];S.wishLearn=S.wishLearn||{};S.wishGroupMeta=S.wishGroupMeta||{};S.shopLearn=S.shopLearn||{};S.cart=S.cart||{ids:[],ship:0};S.groc=S.groc||{items:[]};S.groc.prices=S.groc.prices||{};
   if(!Array.isArray(S.wishCats)||!S.wishCats.length)S.wishCats=WISH_CATS.slice();
   for(const w of S.wish)if(w.cat&&!S.wishCats.includes(w.cat))S.wishCats.push(w.cat);
 }
@@ -729,7 +746,9 @@ function setTab(t,quiet){
   try{localStorage.setItem(KEY+':tab',t)}catch(e){}
   if(!quiet){window.scrollTo(0,0);requestAnimationFrame(()=>document.querySelectorAll('.panel:not([hidden]) .chart').forEach(drawChartIn))}
 }
-const thrC=()=>cents(S.threshold);
+// Warnschwelle und „Puffer-Anteil pro Kauf“ – im Spielraum-Regler der Einkaufsliste auch vorübergehend (Probewert) änderbar
+const thrC=()=>cents(view.thrTry??S.threshold);
+const shareC=()=>(view.shareTry??S.buyShare??60)/100;
 const balCls=v=>v<0?'neg0':v<thrC()?'low':'';
 
 function warnBox(R){
@@ -983,7 +1002,7 @@ function assess(inp){
   const lowBefore=lowest(C,null);
   // Leistbar (grün): tiefster Kontostand bleibt über der Warnschwelle und der Kauf verbraucht weniger als 60 % des freien Puffers
   const thr=thrC(),free=Math.max(0,(lowBefore?lowBefore.bal:balNow())-thr);
-  const level=low.bal<0?'red':low.bal<thr?'orange':(low.bal-thr)<free*.4?'yellow':'green';
+  const level=low.bal<0?'red':low.bal<thr?'orange':(low.bal-thr)<free*(1-shareC())?'yellow':'green';
   // Besserer Zeitpunkt: direkt nach einem späteren Geldeingang
   let better=null;
   if(level==='red'||level==='orange'){
@@ -1557,6 +1576,8 @@ document.addEventListener('click',async e=>{
     case 'wishNav':if(id)wishDetail(id,+t.dataset.d);break;
     case 'cartToggle':cartToggle(id);if(sheet.open&&t.closest('#sheet'))wishDetail(id);break;
     case 'cartOpen':cartSheet();break;
+    case 'playSave':commit(()=>{if(view.thrTry!=null)S.threshold=view.thrTry;if(view.shareTry!=null)S.buyShare=view.shareTry;view.thrTry=view.shareTry=null},'Als Standard gespeichert');break;
+    case 'playReset':view.thrTry=view.shareTry=null;render();snack('Zurückgesetzt');break;
     case 'wishMode':view.wishMode=t.dataset.m;try{localStorage.setItem(KEY+':wishMode',view.wishMode)}catch(e){}setTab('einkauf',true);renderWish();break;
     case 'grocAdd':{if(view.wishMode!=='groc'){view.wishMode='groc';setTab('einkauf',true);renderWish()}const n=$('#gName');if(n){n.scrollIntoView({block:'center'});n.focus()}break}
     case 'grocAddQuick':grocAddQuick();break;
@@ -1565,6 +1586,8 @@ document.addEventListener('click',async e=>{
     case 'grocDel':commit(()=>{S.groc.items=S.groc.items.filter(i=>i.id!==id)},'Artikel gelöscht');break;
     case 'grocFinish':grocFinish();break;
     case 'grocScan':grocScan();break;
+    case 'grocPrices':grocPricesSheet();break;
+    case 'grocPriceDel':{const k=t.dataset.k;commit(()=>{delete S.groc.prices[k]});grocPricesSheet();break}
     case 'cartPlan':showCartPlan();break;
     case 'cartPlanApply':{const el=$('#cPlan'),plan=(el&&el.__plan||[]).filter(p=>p.d);if(!plan.length)break;const {ship}=cartTotals();
       sheet.close();cartCommit(plan.map(p=>({w:p.w,date:p.d.date})),ship,false,`${plan.length} ${plan.length===1?'Kauf':'Käufe'} im Plan eingetragen`);break}
@@ -2341,6 +2364,28 @@ function levelText(a,price){
   const from=affordableFrom(price);
   return from?(a.level==='yellow'?'knapp · ':'')+'leistbar ab '+shortD(from):'im Plan nicht leistbar';
 }
+/* Spielraum: Warnschwelle und Puffer-Anteil ausprobieren (Probewerte gelten sofort überall, bis du speicherst oder zurücksetzt) */
+function playHTML(){
+  const thr=Math.round(view.thrTry!=null?view.thrTry:S.threshold),share=Math.round(shareC()*100),trying=view.thrTry!=null||view.shareTry!=null;
+  const max=Math.max(1000,Math.ceil(S.threshold*2/100)*100,thr);
+  return `<details class="wplay"${view.playOpen||trying?' open':''}><summary>Spielraum anpassen${trying?' <span class="badge-try">Probewerte</span>':''}</summary>
+    <label class="prow"><span>Warnschwelle</span><b id="plThrV">${eur(cents(thr))}</b></label>
+    <input type="range" id="plThr" min="0" max="${max}" step="10" value="${thr}" aria-label="Warnschwelle">
+    <label class="prow"><span>Ein Kauf darf höchstens so viel vom Puffer nehmen</span><b id="plShareV">${share} %</b></label>
+    <input type="range" id="plShare" min="10" max="100" step="5" value="${share}" aria-label="Puffer-Anteil pro Kauf">
+    <p class="sub" style="margin:6px 0 0;font-size:12px">Höhere Schwelle oder kleinerer Anteil = vorsichtiger: weniger ist „heute leistbar“. Die Werte gelten zum Ausprobieren sofort – auch in Übersicht, Warenkorb und Prüfen.</p>
+    ${trying?`<div class="row" style="margin-top:8px"><button class="btn primary" type="button" data-act="playSave">Als Standard speichern</button><button class="btn" type="button" data-act="playReset">Zurücksetzen (${eur(cents(S.threshold))} · ${S.buyShare??60} %)</button></div>`:''}
+  </details>`;
+}
+function wirePlay(){
+  const d=$('.wplay'),t=$('#plThr'),s=$('#plShare');if(!d||!t||!s)return;
+  d.ontoggle=()=>{view.playOpen=d.open};
+  t.oninput=()=>{$('#plThrV').textContent=eur(cents(+t.value))};
+  s.oninput=()=>{$('#plShareV').textContent=s.value+' %'};
+  // Erst beim Loslassen neu rechnen (sonst springt der Regler beim Neuzeichnen)
+  t.onchange=()=>{view.thrTry=+t.value===S.threshold?null:+t.value;view.playOpen=true;render()};
+  s.onchange=()=>{view.shareTry=+s.value===(S.buyShare??60)?null:+s.value;view.playOpen=true;render()};
+}
 function renderWish(){
   const el=$('#p-wish');if(!el)return;
   affCache=null;  // „leistbar ab“ neu berechnen
@@ -2368,7 +2413,7 @@ function renderWish(){
     const a=wishAssess(e.name,e.price);if(a){nAll++;if(a.level==='green')nOk++}
     const head=`<button type="button" class="wrow wgh" data-act="wishCompare" data-g="${esc(e.name)}">
       <span class="wstack">${e.items.slice(0,3).map(w=>thumb(w)).join('')}</span>
-      <span class="wmid"><span class="wgl">Auswahl-Gruppe</span><span class="wname">${esc(e.name)} ›</span><span class="wmeta ${a?a.level:''}">Du willst ${e.want} von ${e.items.length}${a?' · '+levelText(a,e.price):''}</span></span>
+      <span class="wmid"><span class="wgl">Auswahl-Gruppe</span><span class="wname">${esc(e.name)} ›</span><span class="wmeta">Du willst ${e.want} von ${e.items.length}</span>${a?`<span class="wmeta ${a.level}">${levelText(a,e.price)}</span>`:''}</span>
       <span class="wpr"><small>zählt mit Ø${e.want>1?' × '+e.want:''}</small>${e.price?eur(cents(e.price)):'–'}</span></button>`;
     const subs=items.map(w=>{const d=w.price>0&&e.min>0?w.price-e.min:0,best=multi&&w.price>0&&w.price===e.min;
       // Rang = Platz in deiner eigenen Reihenfolge (bleibt auch beim Preisvergleich sichtbar)
@@ -2395,7 +2440,8 @@ function renderWish(){
      ${nAll?`<span class="wmeta ${nOk?'green':'orange'}" style="font-size:13px">${nOk} von ${nAll} heute leistbar</span>`:''}</div>
     ${entries.length?`<div class="wbud-bar"><span class="${pct===null||pct>100?'over':''}" style="width:${pct===null?100:Math.max(2,Math.min(100,pct))}%"></span></div>
     <div class="sub" style="margin-top:6px">${pct===null?'Gerade ist kein Puffer über deiner Warnschwelle frei.':`${pct} % deines Puffers bis ${esc(mName(S.lastMonth))} (${eur(buf)} über deiner Warnschwelle)`} · ${nProducts} ${nProducts===1?'Produkt':'Produkte'}</div>
-    <div class="sub" style="margin-top:4px;font-size:12px">„Leistbar“ heißt: Dein tiefster Kontostand bleibt über deiner Warnschwelle von ${eur(thrC())}, und der Kauf braucht weniger als 60 % deines Puffers.</div>`:''}</div>`;
+    <div class="sub" style="margin-top:4px;font-size:12px">„Leistbar“ heißt: Dein tiefster Kontostand bleibt über deiner Warnschwelle von ${eur(thrC())}, und der Kauf braucht höchstens ${Math.round(shareC()*100)} % deines Puffers.</div>`:''}
+    ${playHTML()}</div>`;
   // Warenkorb-Leiste: nur wenn etwas drin ist
   const ct=cartTotals(),cartBar=ct.items.length?`<button type="button" class="wcartbar" data-act="cartOpen">${CART_SVG}<span style="flex:1;text-align:left">Warenkorb · ${ct.items.length} ${ct.items.length===1?'Produkt':'Produkte'}</span><b>${eur(ct.total)}</b><span aria-hidden="true">›</span></button>`:'';
   el.innerHTML=`${modeSw}${bud}${cartBar}
@@ -2404,6 +2450,7 @@ function renderWish(){
      <option value="cat" ${sort==='cat'?'selected':''}>nach Kategorie</option><option value="asc" ${sort==='asc'?'selected':''}>Preis: günstigste zuerst</option><option value="desc" ${sort==='desc'?'selected':''}>Preis: teuerste zuerst</option><option value="neu" ${sort==='neu'?'selected':''}>Zuletzt hinzugefügt</option></select></div>`:''}</div>
    ${body}
    <div class="row"><button class="btn" type="button" data-act="wishShot">+ Screenshot</button><button class="btn" type="button" data-act="wishLink">+ Link</button><button class="btn" type="button" data-act="wishManual">+ Manuell</button><button class="btn" type="button" data-act="wishCats">Kategorien</button></div>`;
+  wirePlay();
 }
 /* Bildausschnitt: größter Bereich ohne Text (dort ist meist das Produktfoto) */
 function autoCropFrom(d){
@@ -2754,23 +2801,42 @@ function grocPlanned(){
   return S.bookings.filter(b=>!b.done&&!b.calc&&b.amount<0&&isGrocB(b)).map(b=>({b,date:b.day?fmtISO(b.month,b.day):fmtISO(b.month,daysIn(b.month))})).sort((a,b)=>a.date.localeCompare(b.date));
 }
 const nextShop=()=>grocPlanned().find(x=>x.date>=TODAY)||null;
+/* Preisgedächtnis: Preise einzelner Artikel vom Kassenbon (S.groc.prices[schlüssel] = {name,price,shop,date}) */
+const grocNorm=s=>String(s||'').toLowerCase().replace(/[^a-zäöüß ]/g,' ').replace(/\b(\d+|g|kg|ml|l|st|stk|bio|ja|gut|günstig|xxl|pack)\b/g,' ').replace(/\s+/g,' ').trim();
+function grocMatch(a,b){
+  const x=grocNorm(a),y=grocNorm(b);if(!x||!y)return false;if(x===y)return true;
+  if(x.length>=4&&y.includes(x))return true;if(y.length>=4&&x.includes(y))return true;
+  const fx=x.split(' ')[0],fy=y.split(' ')[0];return fx.length>=4&&fx===fy;
+}
+function grocPrice(name){
+  const P=S.groc.prices||{},k=grocNorm(name);if(!k)return null;if(P[k])return P[k];
+  return Object.values(P).filter(p=>grocMatch(name,p.name)).sort((a,b)=>String(b.date).localeCompare(String(a.date)))[0]||null;
+}
+function rememberPrice(name,price,shop,date){
+  const k=grocNorm(name);if(!k||!(price>0))return;S.groc.prices=S.groc.prices||{};
+  S.groc.prices[k]={name:name.trim(),price:Math.round(price*100)/100,shop:shop||'',date:date||TODAY};
+}
+// geschätzter Preis eines Artikels: eigene Angabe, sonst der gemerkte vom letzten Kassenbon
+const grocEst=x=>x.est>0?{v:x.est,mem:false}:(p=>p?{v:p.price,mem:true,p}:null)(grocPrice(x.name));
 function grocHTML(){
-  const it=S.groc.items,open=it.filter(x=>!x.done),got=it.filter(x=>x.done),est=it.reduce((s,x)=>s+cents(x.est||0),0),nb=nextShop();
-  const budget=nb?-cents(nb.b.amount):0,pct=budget?Math.round(est/budget*100):0;
-  const row=x=>`<div class="grow${x.done?' got':''}">
+  const it=S.groc.items,open=it.filter(x=>!x.done),got=it.filter(x=>x.done),nb=nextShop();
+  const est=it.reduce((s,x)=>{const e=grocEst(x);return s+(e?cents(e.v):0)},0),unknown=it.filter(x=>!grocEst(x)).length;
+  const budget=nb?-cents(nb.b.amount):0,pct=budget?Math.round(est/budget*100):0,nMem=Object.keys(S.groc.prices||{}).length;
+  const row=x=>{const e=grocEst(x);return `<div class="grow${x.done?' got':''}">
       <span class="gchk" data-act="grocTick" data-id="${x.id}" role="checkbox" aria-checked="${!!x.done}" tabindex="0" aria-label="${esc(x.name)} ${x.done?'wieder offen':'in den Wagen'}">${x.done?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>':''}</span>
-      <span class="gname">${esc(x.name)}</span>${x.est?`<span class="gest">${eur(cents(x.est))}</span>`:''}
+      <span class="gname">${esc(x.name)}</span>${e?`<span class="gest${e.mem?' mem':''}" title="${e.mem?esc('Vom Kassenbon '+(e.p.shop?e.p.shop+' ':'')+shortD(e.p.date)):''}">${e.mem?'≈ ':''}${eur(cents(e.v))}</span>`:''}
       <span class="gkeep${x.keep?' on':''}" data-act="grocKeep" data-id="${x.id}" role="button" tabindex="0" aria-label="${x.keep?'Nicht mehr jedes Mal':'Jedes Mal kaufen'}" title="Jedes Mal kaufen">↻</span>
-      <span class="gdel" data-act="grocDel" data-id="${x.id}" role="button" tabindex="0" aria-label="${esc(x.name)} löschen">✕</span></div>`;
+      <span class="gdel" data-act="grocDel" data-id="${x.id}" role="button" tabindex="0" aria-label="${esc(x.name)} löschen">✕</span></div>`};
   return `<div class="wbud"><div class="label">${nb?'Nächster Einkauf laut Plan':'Einkaufszettel'}</div>
      ${nb?`<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:2px"><span><b>${esc(nb.b.desc.replace(/\s*\d{1,2}\.\d{1,2}\.?$/,''))}</b> · ${esc(shortD(nb.date))}</span><div class="end">${eur(budget)}</div></div>
        <div class="wbud-bar"><span class="${pct>100?'over':''}" style="width:${Math.max(2,Math.min(100,pct))}%"></span></div>
-       <div class="sub" style="margin-top:6px">${est?`Geschätzt ${eur(est)} von ${eur(budget)}${pct>100?` – ${eur(est-budget)} über dem Budget`:` – noch ${eur(budget-est)} frei`}`:'Trag bei Artikeln einen ungefähren Preis ein, dann siehst du, ob das Budget reicht.'}</div>`
+       <div class="sub" style="margin-top:6px">${est?`Geschätzt ${eur(est)} von ${eur(budget)}${pct>100?` – ${eur(est-budget)} über dem Budget`:` – noch ${eur(budget-est)} frei`}${unknown?` · ${unknown} ohne Preis`:''}`:'Scanne nach dem Einkauf den Kassenbon – dann kennt die App deine Preise und schätzt den nächsten Einkauf automatisch.'}</div>`
      :`<p class="sub" style="margin:4px 0 0">Kein geplanter Einkauf im Plan. Lege unter Einstellungen → Laufende Buchungen z. B. „Einkaufen“ an – dann siehst du hier dein Budget.</p>`}</div>
-   <div class="gadd"><input id="gName" placeholder="Artikel, z. B. Milch" autocomplete="off" enterkeyhint="done"><input id="gEst" inputmode="decimal" placeholder="€" autocomplete="off" aria-label="Ungefährer Preis"><button class="btn primary" type="button" data-act="grocAddQuick" aria-label="Hinzufügen">+</button></div>
+   <div class="gadd"><input id="gName" list="gKnown" placeholder="Artikel, z. B. Milch" autocomplete="off" enterkeyhint="done"><input id="gEst" inputmode="decimal" placeholder="€" autocomplete="off" aria-label="Ungefährer Preis"><button class="btn primary" type="button" data-act="grocAddQuick" aria-label="Hinzufügen">+</button></div>
+   <datalist id="gKnown">${Object.values(S.groc.prices||{}).map(p=>`<option value="${esc(p.name)}">${eur(cents(p.price))}</option>`).join('')}</datalist>
    <section class="wsec"><div class="wsec-b">${open.length?open.map(row).join(''):`<p class="sub" style="padding:12px 0;margin:0">${it.length?'Alles im Wagen.':'Noch leer. Artikel oben eintragen – mit ↻ markierte kommen nach jedem Einkauf automatisch wieder auf den Zettel.'}</p>`}</div></section>
    ${got.length?`<section class="wsec"><div class="wsec-h" style="cursor:default"><span>Im Wagen (${got.length})</span></div><div class="wsec-b">${got.map(row).join('')}</div></section>`:''}
-   <div class="row"><button class="btn primary" type="button" data-act="grocFinish">Einkauf abschließen</button><button class="btn" type="button" data-act="grocScan">Kassenbon scannen</button></div>`;
+   <div class="row"><button class="btn primary" type="button" data-act="grocFinish">Einkauf abschließen</button><button class="btn" type="button" data-act="grocScan">Kassenbon scannen</button>${nMem?`<button class="btn" type="button" data-act="grocPrices">Gemerkte Preise (${nMem})</button>`:''}</div>`;
 }
 function grocAddQuick(){
   const n=$('#gName'),p=$('#gEst');if(!n)return;const name=n.value.trim();if(!name){n.focus();return}
@@ -2780,11 +2846,12 @@ function grocAddQuick(){
   commit(()=>{if(ex){ex.done=false;if(est)ex.est=est}else S.groc.items.push({id:'g'+uid(),name,est,done:false,keep:false})});
   setTimeout(()=>{const n2=$('#gName');if(n2)n2.focus()},30);
 }
-/* Einkauf abschließen: tatsächlichen Betrag mit dem geplanten Einkauf verrechnen (oder neu buchen) */
+/* Einkauf abschließen: tatsächlichen Betrag mit dem geplanten Einkauf verrechnen (oder neu buchen);
+   vom Kassenbon gelesene Artikel: Preise merken und passende Artikel auf dem Zettel abhaken */
 function grocFinish(pre){
   pre=pre||{};
-  const got=S.groc.items.filter(x=>x.done),est=got.reduce((s,x)=>s+cents(x.est||0),0);
-  const date=pre.date&&pre.date>=S.startDate?pre.date:defaultBuyDate();
+  const got=S.groc.items.filter(x=>x.done),est=got.reduce((s,x)=>{const e=grocEst(x);return s+(e?cents(e.v):0)},0);
+  const date=pre.date&&pre.date>=S.startDate?pre.date:defaultBuyDate(),items=pre.items||[];
   openSheet('Einkauf abschließen',`<div class="stack">
     ${pre.note?`<p class="sub" style="margin:0">${pre.note}</p>`:''}
     <div class="grid2"><label class="field"><span>Bezahlt (€)</span><input id="gfAmt" name="amt" inputmode="decimal" value="${pre.amount?numDE(pre.amount.toFixed(2)):est?numDE((est/100).toFixed(2)):''}" placeholder="0,00" autocomplete="off"></label>
@@ -2792,7 +2859,10 @@ function grocFinish(pre){
     <label class="field"><span>Laden (optional)</span><input id="gfShop" name="shop" value="${esc(pre.shop||'')}" placeholder="z. B. Rewe" autocomplete="off"></label>
     <div id="gfTarget" class="sub"></div>
     ${pre.amounts&&pre.amounts.length>1?`<div><div class="label" style="margin-bottom:4px">Anderer Betrag vom Bon?</div><div class="alts">${pre.amounts.map(v=>`<button type="button" class="chip" data-gfv="${v}">${eur(cents(v))}</button>`).join('')}</div></div>`:''}
-    ${S.groc.items.length?`<p class="sub" style="margin:0">Danach: Artikel im Wagen verschwinden vom Zettel, ↻-Artikel kommen wieder auf „offen“.</p>`:''}
+    ${items.length?`<div><div class="label" style="margin-bottom:4px">Artikel vom Kassenbon (${items.length}) · Summe ${eur(items.reduce((s,x)=>s+cents(x.price),0))}</div>
+      <div class="rbitems">${items.map((x,i)=>`<div class="rbi"><input type="checkbox" data-rbi="${i}" ${x.pfand?'':'checked'} aria-label="Preis merken"><input class="rbn" data-rbn="${i}" value="${esc(x.name)}" aria-label="Artikelname"><span class="rbp">${x.qty>1?`${x.qty} × ${eur(cents(x.unit))}`:eur(cents(x.price))}</span></div>`).join('')}</div>
+      <p class="sub" style="margin:6px 0 0">Mit Haken werden die Preise gemerkt – beim nächsten Einkaufszettel schätzt die App damit, was dein Einkauf kostet. Namen kannst du kürzen, z. B. „Milch“ statt „H-MILCH 1,5% 1L“.</p></div>`:''}
+    ${S.groc.items.length?`<p class="sub" style="margin:0">Danach: Artikel im Wagen${items.length?' und die vom Bon':''} verschwinden vom Zettel, ↻-Artikel kommen wieder auf „offen“.</p>`:''}
     <div class="msg" role="alert"></div></div>`,
    `<span class="sp"></span><button class="btn primary" value="save">Eintragen</button>`,
    ()=>{
@@ -2800,13 +2870,16 @@ function grocFinish(pre){
     if(isNaN(v)||v<=0)return showErr('Bitte den bezahlten Betrag eingeben, z. B. 38,40.');
     if(!d||d<S.startDate)return showErr('Bitte ein Datum innerhalb deiner Planung wählen.');
     const shop=f.shop.value.trim(),t=grocTarget(d),m=d.slice(0,7),day=+d.slice(8);
+    const keep=items.map((x,i)=>({...x,name:(form.querySelector(`[data-rbn="${i}"]`)||{}).value||x.name,on:!!(form.querySelector(`[data-rbi="${i}"]`)||{}).checked})).filter(x=>x.on&&x.name.trim());
     commit(()=>{
       if(m>S.lastMonth)S.lastMonth=m;
       if(t){const b=S.bookings.find(x=>x.id===t.b.id);Object.assign(b,{amount:-Math.round(v*100)/100,done:true,month:m,day});if(b.ruleId)b.edited=true;
         if(shop&&!b.desc.includes(shop))b.desc=b.desc+' · '+shop;b.ord=placeOrd(m,day,b.id)}
       else S.bookings.push({id:uid(),month:m,day,desc:shop?'Einkauf '+shop:'Einkauf',amount:-Math.round(v*100)/100,cat:EXP_CATS.includes('Lebensmittel')?'Lebensmittel':'Sonstiges',done:true,src:'groc',ord:placeOrd(m,day)});
+      // Preise merken, gekaufte Artikel auf dem Zettel abhaken
+      keep.forEach(x=>{rememberPrice(x.name,x.unit||x.price,shop,d);S.groc.items.forEach(g=>{if(grocMatch(g.name,x.name))g.done=true})});
       S.groc.items=S.groc.items.filter(x=>!x.done||x.keep);S.groc.items.forEach(x=>x.done=false);view.month=m;
-    },t?`Einkauf verrechnet: ${eur(cents(v))} statt ${eur(-cents(t.b.amount))}`:`Einkauf über ${eur(cents(v))} eingetragen`);
+    },(t?`Einkauf verrechnet: ${eur(cents(v))} statt ${eur(-cents(t.b.amount))}`:`Einkauf über ${eur(cents(v))} eingetragen`)+(keep.length?` · ${keep.length} Preise gemerkt`:''));
    });
   const showT=()=>{const t=grocTarget(form.elements.date.value),v=parseNum(form.elements.amt.value);
     $('#gfTarget').innerHTML=t?`Wird mit dem geplanten <b>${esc(t.b.desc)}</b> (${esc(shortD(t.date))}, ${eur(-cents(t.b.amount))}) verrechnet${!isNaN(v)&&v>0?` – ${cents(v)>-cents(t.b.amount)?eur(cents(v)+cents(t.b.amount))+' mehr':eur(-cents(t.b.amount)-cents(v))+' weniger'} als geplant`:''}.`
@@ -2819,7 +2892,15 @@ function grocTarget(d){
   if(!d)return null;const t0=new Date(d).getTime();
   return grocPlanned().map(x=>({...x,dist:Math.abs(new Date(x.date).getTime()-t0)/864e5})).filter(x=>x.dist<=6).sort((a,b)=>a.dist-b.dist)[0]||null;
 }
-/* Kassenbon: Gesamtbetrag, Datum und Laden per Texterkennung lesen */
+/* Gemerkte Preise ansehen und löschen */
+function grocPricesSheet(){
+  const P=Object.entries(S.groc.prices||{}).sort((a,b)=>a[1].name.localeCompare(b[1].name,'de'));
+  openSheet('Gemerkte Preise',`<div class="stack"><p class="sub" style="margin:0">Vom Kassenbon gelernt. Damit schätzt der Einkaufszettel, was dein Einkauf kostet.</p>
+    <div>${P.map(([k,p])=>`<div class="grow"><span class="gname">${esc(p.name)}<span class="sub" style="display:block;font-size:12px">${esc([p.shop,shortD(p.date)].filter(Boolean).join(' · '))}</span></span><span class="gest">${eur(cents(p.price))}</span>
+      <span class="gdel" data-act="grocPriceDel" data-k="${esc(k)}" role="button" tabindex="0" aria-label="${esc(p.name)} vergessen">✕</span></div>`).join('')||'<p class="sub">Noch keine.</p>'}</div></div>`,
+   `<span class="sp"></span><button class="btn primary" value="save">Fertig</button>`,()=>true);
+}
+/* Kassenbon: Gesamtbetrag, Datum, Laden und einzelne Artikel per Texterkennung lesen */
 function parseReceipt(data){
   const lines=String(data.text||'').split('\n').map(s=>s.trim()).filter(Boolean),text=lines.join('\n');
   // Beträge (nicht Teile eines Datums wie „07.11.26“ oder einer Uhrzeit)
@@ -2834,7 +2915,22 @@ function parseReceipt(data){
   const dm=text.match(/\b(\d{1,2})\.(\d{1,2})\.(\d{2,4})\b/);let date=null;
   if(dm){const y=dm[3].length===2?'20'+dm[3]:dm[3],iso=`${y}-${pad(+dm[2])}-${pad(+dm[1])}`;if(/^\d{4}-\d\d-\d\d$/.test(iso)&&iso<=TODAY&&iso>=S.startDate)date=iso}
   const shop=SHOPS.find(s=>kwHit(text,s.toLowerCase()))||'';
-  return {amount:total,date,shop,amounts:[...new Set([total,...all].filter(v=>v>0))].slice(0,5)};
+  // Einzelne Artikel: Zeilen „Name … 1,19 B“ – ohne Summen-, Zahlungs- und Steuerzeilen; nur bis zur Summe
+  const stop=/summe|gesamt|total|zu zahlen|zahlbetrag|mwst|netto|brutto|steuer|ust\b|rückgeld|ruckgeld|gegeben|geg\.|ec[- ]?karte|kartenzahlung|girocard|visa|mastercard|\bbar\b|^eur|kasse|filiale|datum|uhrzeit|tel\.|www|danke|posten|bon-?nr|beleg|terminal|trace/i;
+  const items=[];let qty=null;
+  for(const l of lines){
+    if(/^\s*(summe|gesamt|total|zu zahlen)/i.test(l))break;
+    const q=l.match(/^\s*(\d{1,2})\s*[xX*×]\s*(\d{1,3})\s?[,.]\s?(\d{2})\b/);   // Mengenzeile „2 x 1,19“
+    if(q&&!/[a-zäöüß]{2}/i.test(l.replace(/\bx\b/i,''))){qty={n:+q[1],unit:+q[2]+ +q[3]/100};continue}
+    const m=l.match(/^(.*?[a-zäöüß].*?)\s+(-?)(\d{1,4})\s?[,.]\s?(\d{2})\s*[a-z0-9*]{0,2}\s*$/i);
+    if(!m||stop.test(l)||m[2]==='-'){qty=null;continue}
+    let name=m[1].replace(/^\d{3,}\s+/,'').replace(/\s+\d+\s*[xX*×]\s*$/,'').replace(/\s{2,}/g,' ').trim();
+    if(!/[a-zäöüß]{2}/i.test(name)){qty=null;continue}
+    const price=+m[3]+ +m[4]/100,inl=name.match(/^(\d{1,2})\s*[xX*×]\s+(.+)$/);
+    const n=qty?qty.n:inl?+inl[1]:1;if(inl)name=inl[2];
+    items.push({name:name.slice(0,40),price,qty:n,unit:qty?qty.unit:Math.round(price/n*100)/100,pfand:/pfand|leergut/i.test(name)});qty=null;
+  }
+  return {amount:total,date,shop,items,amounts:[...new Set([total,...all].filter(v=>v>0))].slice(0,5)};
 }
 function grocScan(){
   const inp=document.createElement('input');inp.type='file';inp.accept='image/*';
