@@ -263,6 +263,22 @@ main{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px
 .wgh .wstack .wth{border-color:var(--accent-soft)}
 .wone{border:2px solid var(--line);border-radius:14px;padding:0 10px;margin:6px 0 8px}
 .wone>.wrow{border-top:0}
+/* Warenkorb */
+.wcart{flex:none;width:34px;height:34px;border-radius:10px;border:1.5px solid var(--line);display:grid;place-items:center;color:var(--muted);margin-left:2px}
+.wcart svg{width:18px;height:18px}
+.wcart.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.wcartbar{display:flex;align-items:center;gap:10px;width:100%;margin-top:10px;padding:12px 14px;border:0;border-radius:16px;background:var(--accent);color:var(--accent-ink);font:inherit;font-weight:700;cursor:pointer}
+.wcartbar svg{width:20px;height:20px;flex:none}
+.wcartbar b{font-family:var(--display);font-size:16px}
+.cartsum .tot{font-size:17px}.cartsum .tot b{font-family:var(--display);font-size:20px}
+.cgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.cbox{background:var(--surface-2);border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;gap:2px}
+.cbox b{font-family:var(--display);font-size:19px}
+.ctab{width:100%;border-collapse:collapse;margin-top:10px;font-size:13.5px}
+.ctab th{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);text-align:right;padding:6px 0;border-bottom:1px solid var(--line)}
+.ctab th:first-child,.ctab td:first-child{text-align:left}
+.ctab td{text-align:right;padding:7px 0;border-bottom:1px solid var(--grid);font-variant-numeric:tabular-nums}
+.neg{color:var(--neg)}.warnc{color:var(--warn)}
 /* Produktansicht: ganzer Bildschirm, wischen zum nächsten Produkt der Gruppe */
 dialog.sheet.full{height:100dvh;max-height:100dvh;margin:0 auto;border-radius:0;padding-top:env(safe-area-inset-top,0px)}
 dialog.sheet.full[open]{display:flex;flex-direction:column}
@@ -499,7 +515,7 @@ function syncCats(){
   if(!S.cats.includes('Sonstiges'))S.cats.push('Sonstiges');
   CATS=['Einkommen',...S.cats.filter(c=>c!=='Einkommen')];EXP_CATS=CATS.slice(1);
   S.budgets=S.budgets||{};S.goals=S.goals||[];S.learn=S.learn||{};
-  S.wish=S.wish||[];S.wishLearn=S.wishLearn||{};S.wishGroupMeta=S.wishGroupMeta||{};S.shopLearn=S.shopLearn||{};
+  S.wish=S.wish||[];S.wishLearn=S.wishLearn||{};S.wishGroupMeta=S.wishGroupMeta||{};S.shopLearn=S.shopLearn||{};S.cart=S.cart||{ids:[],ship:0};
   if(!Array.isArray(S.wishCats)||!S.wishCats.length)S.wishCats=WISH_CATS.slice();
   for(const w of S.wish)if(w.cat&&!S.wishCats.includes(w.cat))S.wishCats.push(w.cat);
 }
@@ -1512,6 +1528,10 @@ document.addEventListener('click',async e=>{
     case 'wishCompare':wishCompare(t.dataset.g);break;
     case 'wishImgAdd':view.wishExtraFor=id;$('#wishExtraFile').click();break;
     case 'wishNav':if(id)wishDetail(id,+t.dataset.d);break;
+    case 'cartToggle':cartToggle(id);if(sheet.open&&t.closest('#sheet'))wishDetail(id);break;
+    case 'cartOpen':cartSheet();break;
+    case 'cartRemove':commit(()=>{const ids=cartIds(),i=ids.indexOf(id);if(i>=0)ids.splice(i,1)});if(cartIds().length)cartSheet();else{sheet.close();snack('Der Warenkorb ist leer')}break;
+    case 'cartClear':if(await ask('Alle Produkte aus dem Warenkorb nehmen? Sie bleiben auf der Einkaufsliste.','Leeren')){commit(()=>{S.cart={ids:[],ship:0}},'Warenkorb geleert');sheet.close()}break;
     case 'wishImgDel':{const k=t.dataset.k;commit(()=>{const w=S.wish.find(x=>x.id===id);if(w)w.extra=(w.extra||[]).filter(x=>x!==k)},'Bild gelöscht');wishDetail(id);break}
     case 'wishWant':{const g=t.dataset.g,n=Math.max(1,Math.min(groupItems(g).length,groupWant(g)+ +t.dataset.d));commit(()=>setGroupWant(g,n));wishCompare(g);break}
     case 'wishAdd':wishAddChooser();break;
@@ -2279,7 +2299,7 @@ function renderWish(){
   const rowItem=w=>{const a=wishAssess(w.name,w.price);if(a){nAll++;if(a.level==='green')nOk++}
     return `<button type="button" class="wrow" data-act="wishOpen" data-id="${w.id}">${thumb(w)}
       <span class="wmid"><span class="wname">${esc(w.name)}</span><span class="wmeta ${a?a.level:''}">${esc([w.shop,levelText(a)].filter(Boolean).join(' · ')||w.cat)}</span></span>
-      <span class="wpr">${w.price>0?eur(cents(w.price)):'–'}</span></button>`};
+      <span class="wpr">${w.price>0?eur(cents(w.price)):'–'}</span>${cartBtn(w.id)}</button>`};
   // Auswahl-Gruppe: Kopfzeile (zählt mit Ø) und darunter alle Produkte mit Preisbalken
   const rowGroup=e=>{
     const gk=groupKey(e.name),cmp=!!cmpOn[gk],multi=e.items.length>1;
@@ -2294,7 +2314,7 @@ function renderWish(){
       return `<button type="button" class="wrow wsub" data-act="wishOpen" data-id="${w.id}">${thumb(w,multi?e.items.indexOf(w)+1:0)}
         <span class="wmid"><span class="wname">${esc(w.name)}</span><span class="wmeta ${best?'green':''}">${esc([w.shop,best?'günstigste':d>0?'+'+eur(cents(d)):''].filter(Boolean).join(' · ')||w.cat)}</span>
          <span class="cmp-bar"><span class="${best?'min':''}" style="width:${e.max?Math.max(4,(w.price||0)/e.max*100):0}%"></span></span></span>
-        <span class="wpr">${w.price>0?eur(cents(w.price)):'–'}</span></button>`}).join('');
+        <span class="wpr">${w.price>0?eur(cents(w.price)):'–'}</span>${cartBtn(w.id)}</button>`}).join('');
     return `<div class="wgrp" data-group="${esc(e.name)}">${head}<div class="wglist${cmp?' cmp':''}" data-g="${esc(e.name)}">${subs}</div>
       <div class="wgrp-f"><button class="btn ${cmp?'tonal':''}" type="button" data-act="wishCmpSort" data-g="${esc(e.name)}">${cmp?'Eigene Reihenfolge':'Preise vergleichen'}</button>
        <button class="btn" type="button" data-act="wishAddTo" data-g="${esc(e.name)}">+ Weiteres</button></div></div>`};
@@ -2315,7 +2335,9 @@ function renderWish(){
     ${entries.length?`<div class="wbud-bar"><span class="${pct===null||pct>100?'over':''}" style="width:${pct===null?100:Math.max(2,Math.min(100,pct))}%"></span></div>
     <div class="sub" style="margin-top:6px">${pct===null?'Gerade ist kein Puffer über deiner Warnschwelle frei.':`${pct} % deines Puffers bis ${esc(mName(S.lastMonth))} (${eur(buf)} über deiner Warnschwelle)`} · ${nProducts} ${nProducts===1?'Produkt':'Produkte'}</div>
     <div class="sub" style="margin-top:4px;font-size:12px">„Leistbar“ heißt: Dein tiefster Kontostand bleibt über deiner Warnschwelle von ${eur(thrC())}, und der Kauf braucht weniger als 60 % deines Puffers.</div>`:''}</div>`;
-  el.innerHTML=`${bud}
+  // Warenkorb-Leiste: nur wenn etwas drin ist
+  const ct=cartTotals(),cartBar=ct.items.length?`<button type="button" class="wcartbar" data-act="cartOpen">${CART_SVG}<span style="flex:1;text-align:left">Warenkorb · ${ct.items.length} ${ct.items.length===1?'Produkt':'Produkte'}</span><b>${eur(ct.total)}</b><span aria-hidden="true">›</span></button>`:'';
+  el.innerHTML=`${bud}${cartBar}
    <div class="stick">${all.length?`<div class="chips">${['',...S.wishCats.filter(c=>count(c))].map(c=>`<button type="button" class="chip ${c===(view.wishCat||'')?'on':''}" data-act="wishCat" data-c="${esc(c)}">${c?esc(c)+' · '+count(c):'Alle · '+all.length}</button>`).join('')}</div>
     <div class="row" style="align-items:center;margin:2px 0 8px;flex-wrap:nowrap"><label class="sub" for="wishSort" style="flex:none">Sortieren</label><select id="wishSort" data-act="wishSort" style="flex:1;min-width:0;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:8px 9px">
      <option value="cat" ${sort==='cat'?'selected':''}>nach Kategorie</option><option value="asc" ${sort==='asc'?'selected':''}>Preis: günstigste zuerst</option><option value="desc" ${sort==='desc'?'selected':''}>Preis: teuerste zuerst</option><option value="neu" ${sort==='neu'?'selected':''}>Zuletzt hinzugefügt</option></select></div>`:''}</div>
@@ -2522,8 +2544,8 @@ function wishImgList(w){
   return out;
 }
 /* Fiktiver Verlauf: Kontostand mit Kauf (am heutigen Tag) gegenüber ohne Kauf */
-function buySeries(w){
-  const date=defaultBuyDate(),m=date.slice(0,7),day=+date.slice(8);
+function buySeries(w,date0){
+  const date=date0||defaultBuyDate(),m=date.slice(0,7),day=+date.slice(8);
   const x={id:'__kauf',month:m,day,desc:w.name,amount:-w.price,cat:'Sonstiges',ord:placeOrd(m,day)};
   const R=compute(false,x),k=R.pts.findIndex(p=>p.m>=TODAY_M),s0=k>0?k-1:0;
   const P=R.pts.slice(s0),base=C.pts.slice(s0),PB=[];let j=0,mark=-1;
@@ -2546,6 +2568,7 @@ function wishDetail(id,dir){
       ${im.main?'':`<button type="button" class="gal-del" data-act="wishImgDel" data-id="${id}" data-k="${esc(im.key)}" aria-label="Bild löschen">✕</button>`}</div>`).join('')}</div>
     ${imgs.length>1?`<div class="gal-dots" id="galDots">${imgs.map((_,i)=>`<span class="${i?'':'on'}"></span>`).join('')}</div>`:''}</div>`:'';
   openSheet(w.name,`<div class="stack wdetail">${nav}${gallery}
+    <button class="btn ${inCart(id)?'tonal':''}" type="button" data-act="cartToggle" data-id="${id}">${inCart(id)?'✓ Im Warenkorb – herausnehmen':'In den Warenkorb legen'}</button>
     <div class="row">${imgs.length?`<button class="btn" type="button" id="galCrop" data-act="wishCrop" data-id="${id}" data-k="${esc(imgs[0].key)}">Ausschnitt anpassen</button>`:''}<button class="btn" type="button" data-act="wishImgAdd" data-id="${id}">+ ${imgs.length?'Weitere Bilder':'Bilder'}</button></div>
     <div><div class="kv"><span>Preis</span><b>${w.price>0?eur(cents(w.price)):'–'}</b></div>
      <div class="kv"><span>Kategorie</span><b>${esc(w.cat)}</b></div>
@@ -2661,6 +2684,89 @@ function wishCatsSheet(){
   $('#wcAdd').onclick=()=>{const i=form.querySelectorAll('#wcList .catrow').length;$('#wcList').insertAdjacentHTML('beforeend',row('',i));const el=$('#wcList').lastElementChild;el.dataset.orig='';wire(el);el.querySelector('input').focus()};
 }
 $('#wishFile').addEventListener('change',e=>{const f=e.target.files[0];if(f)handleWishImage(f,view.wishEditId).finally(()=>{e.target.value='';view.wishEditId=null})});
+
+/* ---------- Warenkorb: Produkte, die du als Nächstes zusammen kaufen willst ----------
+   Gespeichert in S.cart = {ids:[Produkt-IDs], ship: Versandkosten in €}. Zählt nicht im Kontostand, bis du „Alles gekauft“ tippst. */
+function cartIds(){S.cart=S.cart||{ids:[],ship:0};S.cart.ids=(S.cart.ids||[]).filter(id=>S.wish.some(w=>w.id===id));return S.cart.ids}
+const inCart=id=>!!(S.cart&&(S.cart.ids||[]).includes(id));
+function cartToggle(id){const on=inCart(id);commit(()=>{const ids=cartIds(),i=ids.indexOf(id);if(i>=0)ids.splice(i,1);else ids.push(id)});snack(on?'Aus dem Warenkorb genommen':'In den Warenkorb gelegt')}
+const CART_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h2l2.2 10.2a1.5 1.5 0 0 0 1.5 1.2h8.6a1.5 1.5 0 0 0 1.5-1.1L21 8H6.2"/><circle cx="9.5" cy="19.5" r="1.3"/><circle cx="17" cy="19.5" r="1.3"/></svg>';
+const CART_ON_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>';
+const cartBtn=id=>{const on=inCart(id);return `<span class="wcart${on?' on':''}" data-act="cartToggle" data-id="${id}" role="button" tabindex="0" aria-label="${on?'Aus dem Warenkorb nehmen':'In den Warenkorb legen'}">${on?CART_ON_SVG:CART_SVG}</span>`};
+function cartTotals(){
+  const items=cartIds().map(id=>S.wish.find(w=>w.id===id)).filter(Boolean),sum=items.reduce((s,w)=>s+cents(w.price||0),0),ship=cents(S.cart.ship||0);
+  return {items,sum,ship,total:sum+ship};
+}
+function cartSheet(){
+  const {items}=cartTotals();if(!items.length){snack('Der Warenkorb ist leer');return}
+  const date=view.cartDate&&view.cartDate>=S.startDate?view.cartDate:defaultBuyDate();
+  openSheet('Warenkorb',`<div class="stack">
+    <div>${items.map(w=>{const img=wishImg.get(w.id)||w.imgUrl;
+      return `<div class="wrow" style="cursor:default"><span class="wth">${img?`<img src="${esc(img)}" alt="" referrerpolicy="no-referrer">`:'Kein Bild'}</span>
+        <span class="wmid"><span class="wname">${esc(w.name)}</span><span class="wmeta">${esc([w.shop,w.group?'aus „'+w.group+'“':''].filter(Boolean).join(' · ')||w.cat)}</span></span>
+        <span class="wpr">${w.price>0?eur(cents(w.price)):'–'}</span>
+        <button type="button" class="ib" data-act="cartRemove" data-id="${w.id}" aria-label="${esc(w.name)} aus dem Warenkorb nehmen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>`}).join('')}</div>
+    <div class="grid2"><label class="field"><span>Versandkosten (€)</span><input id="cShip" inputmode="decimal" value="${S.cart.ship?numDE(S.cart.ship):''}" placeholder="0,00" autocomplete="off"></label>
+     <label class="field"><span>Kaufdatum</span><input id="cDate" type="date" value="${date}" min="${S.startDate}"></label></div>
+    <div class="cartsum" id="cSum"></div>
+    <div id="cVerdict"></div>
+    <div><div class="label" style="margin-bottom:4px">Dein Kontostand mit und ohne Warenkorb</div><div class="chart" id="cartChart" style="height:210px"></div><div class="legend"></div></div>
+    <div id="cStats"></div>
+    <label class="check"><input type="checkbox" id="cDone" checked>Schon bezahlt (abhaken)</label>
+    <div class="msg" role="alert"></div></div>`,
+   `<button class="btn" type="button" data-act="cartClear">Leeren</button><span class="sp"></span><button class="btn primary" value="save">Alles gekauft – eintragen</button>`,
+   ()=>cartBuy());
+  sheet.classList.add('full');
+  const upd=()=>{
+    const {items,sum,ship,total}=cartTotals(),d=$('#cDate').value||defaultBuyDate();
+    $('#cSum').innerHTML=`<div class="kv"><span>${items.length} ${items.length===1?'Produkt':'Produkte'}</span><b>${eur(sum)}</b></div>
+      <div class="kv"><span>Versand</span><b>${ship?eur(ship):'–'}</b></div><div class="kv tot"><span>Gesamt</span><b>${eur(total)}</b></div>`;
+    const err=d<S.startDate?'Das Datum liegt vor dem Start deiner Planung.':d.slice(0,7)>S.lastMonth?`Dein Plan reicht nur bis ${mName(S.lastMonth)}.`:'';
+    const el=$('#cartChart');
+    if(err||!(total>0)){$('#cVerdict').innerHTML=err?`<p class="sub" style="margin:0">${esc(err)}</p>`:'';$('#cStats').innerHTML='';el.innerHTML='';el.__custom=null;return}
+    const a=assess({name:'Warenkorb',price:total/100,date:d,cat:'Sonstiges'});
+    if(a&&!a.err){const v=verdictText(a);$('#cVerdict').innerHTML=`<div class="verdict ${a.level}" style="padding:12px;gap:6px"><div class="vh"><span class="badge">${{green:'Empfehlung',yellow:'Mit Vorsicht',orange:'Warten',red:'Abraten'}[a.level]}</span><h3 style="font-size:16px">${esc(v.head)}</h3></div><p class="sub" style="color:inherit;margin:0">${esc(v.t)}</p></div>`}
+    // Verlauf mit und ohne Warenkorb
+    const s=buySeries({name:'Warenkorb',price:total/100},d);s.baseLabel='ohne Warenkorb';s.newLabel='mit Warenkorb';
+    el.__custom=s;drawChartIn(el,s);if(!el.querySelector('svg'))setTimeout(()=>drawChartIn(el,s),60);
+    // Tiefster Stand und Monatsenden
+    const m=d.slice(0,7),x={id:'__kauf',month:m,day:+d.slice(8),desc:'Warenkorb',amount:-total/100,cat:'Sonstiges',ord:placeOrd(m,+d.slice(8))};
+    const R=compute(false,x),lowW=lowest(R,null),lowO=lowest(C,null),thr=thrC();
+    const when=r=>r&&r.b?(r.b.day?fmtD(r.m,r.b.day):mOnly(r.m)):'';
+    const cls=v=>v<0?'neg':v<thr?'warnc':'';
+    const months=R.months.filter(mo=>mo.m>=(m<TODAY_M?TODAY_M:m)).slice(0,6);
+    $('#cStats').innerHTML=`<div class="cgrid">
+      <div class="cbox"><div class="label">Tiefster Stand ohne</div><b class="${lowO?cls(lowO.bal):''}">${lowO?eur(lowO.bal):'–'}</b><span class="sub">${esc(when(lowO))}</span></div>
+      <div class="cbox"><div class="label">Tiefster Stand mit</div><b class="${lowW?cls(lowW.bal):''}">${lowW?eur(lowW.bal):'–'}</b><span class="sub">${esc(when(lowW))}</span></div></div>
+     <table class="ctab"><thead><tr><th>Monatsende</th><th>ohne</th><th>mit Warenkorb</th></tr></thead><tbody>
+      ${months.map(mo=>{const o=C.months.find(c=>c.m===mo.m);return `<tr><td>${esc(mName(mo.m))}</td><td class="${o?cls(o.end):''}">${o?eur(o.end):'–'}</td><td class="${cls(mo.end)}"><b>${eur(mo.end)}</b></td></tr>`}).join('')}</tbody></table>
+     <p class="sub" style="margin:4px 0 0">Rot: unter 0 €, orange: unter deiner Warnschwelle von ${eur(thr)}.</p>`;
+  };
+  $('#cShip').oninput=()=>{const v=parseNum($('#cShip').value);S.cart.ship=isNaN(v)||v<0?0:Math.round(v*100)/100;save();upd()};
+  $('#cDate').onchange=()=>{view.cartDate=$('#cDate').value;upd()};
+  upd();
+}
+/* Alles gekauft: jedes Produkt (und die Versandkosten) als Ausgabe eintragen und von der Einkaufsliste nehmen */
+function cartBuy(){
+  const {items,ship}=cartTotals(),date=$('#cDate').value,done=$('#cDone').checked;
+  if(!items.length)return showErr('Der Warenkorb ist leer.');
+  if(!date||date<S.startDate)return showErr('Bitte ein Datum innerhalb deiner Planung wählen.');
+  const m=date.slice(0,7),day=+date.slice(8);
+  Promise.all(items.map(w=>thumbFromDataURL(wishImg.get(w.id)))).then(ths=>{
+    commit(()=>{
+      if(m>S.lastMonth)S.lastMonth=m;
+      items.forEach((w,i)=>{const b={id:uid(),month:m,day,desc:w.name,amount:-(w.price||0),cat:EXP_CATS.includes(w.cat)?w.cat:guessCatTx(w.name+' '+(w.shop||''),-1),done,src:'wish',ord:placeOrd(m,day)};
+        if(ths[i])b.thumb=ths[i];S.bookings.push(b)});
+      if(ship>0)S.bookings.push({id:uid(),month:m,day,desc:'Versandkosten',amount:-ship/100,cat:'Sonstiges',done,src:'wish',ord:placeOrd(m,day)});
+      // Auswahl-Gruppen: so viele gekauft wie gewünscht → Rest der Gruppe entfernen, sonst gewünschte Anzahl verringern
+      const bought=new Set(items.map(w=>w.id)),groups=new Map();
+      items.forEach(w=>{if(!w.group)return;const k=groupKey(w.group),o=groups.get(k)||{g:w.group,n:0};o.n++;groups.set(k,o)});
+      for(const {g,n} of groups.values()){const want=groupWant(g);if(n>=want)S.wish=S.wish.filter(x=>groupKey(x.group)!==groupKey(g));else setGroupWant(g,want-n)}
+      S.wish=S.wish.filter(x=>!bought.has(x.id));S.cart={ids:[],ship:0};view.month=m;
+    },`${items.length} ${items.length===1?'Produkt':'Produkte'}${ship?' + Versand':''} als Ausgaben eingetragen`);
+    setTab('buchungen');
+  });
+}
 
 /* „+ Produkt“: Screenshot, Link oder von Hand */
 function wishAddChooser(){
