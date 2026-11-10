@@ -158,6 +158,9 @@ main{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px
 .pos{color:var(--pos)} .neg{color:var(--neg)}
 .tag{font-size:11px;font-weight:600;color:var(--muted);margin-left:5px}
 .tag.road{color:var(--road)}
+.tag.abo{color:var(--accent);background:var(--accent-soft);padding:1px 6px;border-radius:6px}
+.abo-sum{display:grid;grid-template-columns:1fr 1fr;gap:8px}.abo-sum div{background:var(--surface-2);border-radius:12px;padding:10px}.abo-sum b{display:block;font-size:20px}
+.abo-row{display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);cursor:pointer}.abo-row:last-child{border-bottom:0}.abo-row .d{flex:1;min-width:0}.abo-row .t{font-weight:600}.abo-row .s{font-size:12px;color:var(--muted)}.abo-row .n{text-align:right}.abo-row .n small{display:block;font-size:11px;color:var(--muted)}
 .thumb{width:34px;height:34px;border-radius:8px;object-fit:cover;flex:none;background:var(--surface-2)}
 
 .fab{position:fixed;right:max(18px,calc(env(safe-area-inset-right,0px) + 18px));bottom:calc(var(--nav-h) + 16px + env(safe-area-inset-bottom,0px));z-index:15;
@@ -699,6 +702,20 @@ function changeRuleFrom(ruleId,fromMonth,patch){
   S.skipped=S.skipped.map(k=>{const [rid,rest]=[k.slice(0,k.indexOf(':')),k.slice(k.indexOf(':')+1)];return rid===ruleId&&rest.slice(0,7)>=fromMonth?target.id+':'+rest:k});
   return target;
 }
+/* Wiederholung & Abos */
+const REP=[[1,'monatlich'],[2,'alle 2 Monate'],[3,'vierteljährlich'],[6,'halbjährlich'],[12,'jährlich']];
+const repName=n=>(REP.find(x=>x[0]===n)||[0,`alle ${n} Monate`])[1];
+const famRules=id=>{const f=ruleFamily(id);return S.rules.filter(r=>(r.family||r.id)===f).sort((a,b)=>a.start<b.start?-1:1)};
+const famEnd=id=>{const l=famRules(id).at(-1);return l&&l.end||''};
+/* Ab einem Monat keine Termine mehr (alle Teilstücke der Regel, z. B. Abo gekündigt); nur erledigte bleiben */
+function stopRuleFrom(id,from){
+  for(const r of famRules(id)){
+    if(r.end&&r.end<from)continue;
+    S.bookings=S.bookings.filter(b=>!(b.ruleId===r.id&&b.month>=from&&!b.done));
+    if(r.start>=from)S.rules=S.rules.filter(x=>x!==r);else r.end=addM(from,-1);
+  }
+}
+const ruleOf=b=>b.ruleId?S.rules.find(x=>x.id===b.ruleId):null;
 
 /* ---------- Berechnung in Cent ---------- */
 function compute(useBase,extra){
@@ -796,7 +813,8 @@ function flowHTML(mo,type){
 function itemHTML(r){
   const b=r.b,isVar=b.calc&&b.calc.type==='var',isRef=b.calc&&b.calc.type==='refund';
   const cls=[b.done?(r.a>=0?'done-pos':'done-neg'):'',isVar?'road':''].join(' ');
-  const tags=(b.ruleId&&!isRef?'<span class="tag" title="Wiederkehrend">↻</span>':'')+(isVar?'<span class="tag road">Szenario</span>':'')+(isRef?'<span class="tag">berechnet</span>':'')+(b.src==='scan'?'<span class="tag">Screenshot</span>':'')+(b.src==='fix'?'<span class="tag">Korrektur</span>':'')+(b.src==='wish'?'<span class="tag">Einkaufsliste</span>':'');
+  const ru=!isRef&&ruleOf(b);
+  const tags=(ru&&ru.abo?`<span class="tag abo">Abo · ${repName(ru.every||1)}</span>`:ru&&(ru.every||1)>1?`<span class="tag" title="Wiederkehrend">↻ ${repName(ru.every)}</span>`:b.ruleId&&!isRef?'<span class="tag" title="Wiederkehrend">↻</span>':'')+(isVar?'<span class="tag road">Szenario</span>':'')+(isRef?'<span class="tag">berechnet</span>':'')+(b.src==='scan'?'<span class="tag">Screenshot</span>':'')+(b.src==='fix'?'<span class="tag">Korrektur</span>':'')+(b.src==='wish'?'<span class="tag">Einkaufsliste</span>':'');
   return `<div class="item ${cls}">
     <button class="tick" type="button" data-act="done" data-id="${b.id}" aria-pressed="${!!b.done}" aria-label="${esc(b.desc)} erledigt"><span>✓</span></button>
     ${b.thumb?`<img class="thumb" src="${b.thumb}" alt="">`:''}
@@ -856,7 +874,7 @@ function renderBookings(){
    <div class="list">${balRowHTML(m+':start',startLabel,mi===0?'echter Kontostand':'Kontostand Anfang '+mOnly(m),mo.start)}
      ${mo.rows.map(itemHTML).join('')}
      ${balRowHTML(m+':end','Kontostand Ende '+mOnly(m),open?open+' Buchung(en) noch offen':'alle Buchungen erledigt',mo.end)}</div>
-   <div class="row"><button class="btn" type="button" data-act="rules">↻ Laufende Buchungen</button><button class="btn" type="button" data-act="importData">Kontoauszug importieren</button>
+   <div class="row"><button class="btn" type="button" data-act="rules">↻ Laufende Buchungen</button><button class="btn" type="button" data-act="abos">Abos${aboRules().length?` (${aboRules().length})`:''}</button><button class="btn" type="button" data-act="importData">Kontoauszug importieren</button>
      ${ms.length>1&&m===S.lastMonth&&m>windowEnd()?`<button class="btn danger" type="button" data-act="removeMonth">${esc(mOnly(m))} entfernen</button>`:''}</div>`;
   const on=$('#p-buchungen .chip.on'); if(on&&!view.scrolledChip){on.scrollIntoView({inline:'center',block:'nearest'});view.scrolledChip=true}
 }
@@ -1333,6 +1351,7 @@ function bookingSheet(id,month){
   const sign=c&&c.type==='var'?(c.sign||-1):(id&&b.amount>=0?1:-1);
   const mOpts=sel=>ms.map(m=>`<option value="${m}" ${m===sel?'selected':''}>${esc(mName(m))}</option>`).join('');
   const list=id?monthBookings(b.month):[],pos=list.indexOf(b);
+  const r0=id&&b.ruleId?S.rules.find(x=>x.id===b.ruleId):null,rep0=r0?(r0.every||1):0,end0=r0?famEnd(r0.id):'';
   openSheet(id?'Buchung bearbeiten':'Neue Buchung',`<div class="stack">
     ${b.thumb?`<img src="${b.thumb}" alt="" style="width:72px;height:72px;border-radius:12px;object-fit:cover">`:''}
     <label class="field"><span>Beschreibung</span><input id="fDesc" name="desc" required value="${esc(b.desc)}" autocomplete="off"></label>
@@ -1347,6 +1366,10 @@ function bookingSheet(id,month){
     <div class="grid2"><label class="field"><span>Datum</span><input id="fDate" type="date" name="date" value="${b.day?fmtISO(b.month,b.day):''}" min="${S.startDate}"></label>
      <label class="field"><span>Monat (ohne Datum)</span><select id="fMonth" name="month">${mOpts(b.month)}</select></label></div>
     <label class="field"><span>Kategorie</span><select id="fCat" name="cat">${catOpts(b.cat)}</select></label>
+    <div class="grid2"><label class="field"><span>Wiederholung</span><select id="fRep" name="rep"><option value="0" ${rep0?'':'selected'}>Einmalig</option>${REP.map(([n,t])=>`<option value="${n}" ${n===rep0?'selected':''}>${t}</option>`).join('')}${rep0&&!REP.some(x=>x[0]===rep0)?`<option value="${rep0}" selected>alle ${rep0} Monate</option>`:''}</select></label>
+     <label class="field" id="fEndWrap"><span>Läuft bis (optional)</span><input id="fEnd" name="end" type="month" value="${end0}"></label></div>
+    <label class="check" id="fAboWrap"><input type="checkbox" id="fAbo" name="abo" ${r0&&r0.abo?'checked':''}>Das ist ein Abo (z. B. Netflix, Fitnessstudio, Versicherung)</label>
+    ${r0?`<p class="sub" style="margin:-6px 0 0">Wiederholung, Abo und „läuft bis“ gelten ab diesem Termin. „Einmalig“ beendet die Wiederholung nach diesem Termin, z. B. wenn du ein Abo gekündigt hast.</p>`:''}
     <label class="check"><input type="checkbox" id="fDone" name="done" ${b.done?'checked':''}>Erledigt (bezahlt bzw. erhalten)</label>
     ${id?`<div class="row"><button class="btn" type="button" data-move="-1" ${pos<=0?'disabled':''}>↑ Nach oben</button><button class="btn" type="button" data-move="1" ${pos>=list.length-1?'disabled':''}>↓ Nach unten</button></div>`:''}
     ${b.ruleId&&id?`<label class="check"><input type="checkbox" id="fAll" name="all">↻ Auch alle folgenden Termine ab ${esc(mOnly(b.month))} ändern</label>
@@ -1363,6 +1386,26 @@ function bookingSheet(id,month){
     if(s==='fixed'){const n=parseNum(f.amount.value);if(isNaN(n))return showErr('Bitte einen gültigen Betrag eingeben, z. B. 12,50.');amount=sg*Math.abs(n)}
     else if(s==='refund'){if(f.rto.value<f.rfrom.value)return showErr('Beim Zeitraum liegt „bis“ vor „von“.');calc={type:'refund',rule:f.rrule.value,from:f.rfrom.value,to:f.rto.value}}
     else calc={type:'var',var:s.slice(4),sign:sg};
+    const rep=+f.rep.value,abo=rep>0&&f.abo.checked,end=rep>0?f.end.value:'';
+    if(rep&&s!=='fixed'&&!(r0&&action==='save'))return showErr('Wiederkehrende Buchungen und Abos brauchen einen festen Betrag.');
+    if(end&&end<m)return showErr('„Läuft bis“ liegt vor dem Monat dieser Buchung.');
+    const repChanged=r0&&action==='save'&&(rep!==rep0||abo!==!!r0.abo||end!==end0);
+    if(repChanged){
+      const all=!!(f.all&&f.all.checked),desc=f.desc.value.trim(),name=r0.desc.replace(/\s*\{TT\}\.\{MM\}/,'');
+      commit(()=>{
+        if(m>S.lastMonth)S.lastMonth=m;
+        const t=S.bookings.find(x=>x.id===id),moved=t.month!==m||t.day!==day;
+        Object.assign(t,{month:m,day,desc,amount,cat:f.cat.value,done:f.done.checked,edited:true});if(calc)t.calc=calc;else delete t.calc;
+        if(moved)t.ord=placeOrd(m,day,t.id);
+        if(!rep){stopRuleFrom(r0.id,addM(b.month,1));return}   // Wiederholung beenden: dieser Termin ist der letzte
+        const patch={every:rep};
+        if(all){patch.amount=s==='fixed'?amount:r0.amount;patch.cat=f.cat.value;if(desc!==tpl(r0.desc,b.month,b.day))patch.desc=desc}
+        const nr=rep!==rep0||all?changeRuleFrom(r0.id,b.month,patch):r0;
+        famRules(nr.id).forEach(x=>{if(abo)x.abo=true;else delete x.abo});
+        if(end!==end0){if(end)stopRuleFrom(nr.id,addM(end,1));else{const l=famRules(nr.id).at(-1);if(l)l.end=''}}
+        t.ruleId=nr.id;t.occ=occKey(nr.id,t.month,t.day);if(all)delete t.edited;
+        view.month=m;
+      },!rep?`„${name}“ endet nach ${mName(b.month)}`:`${abo?'Abo':'Wiederholung'} „${name}“: ${repName(rep)}${end?' bis '+mName(end):''}`);return}
     if(id&&b.ruleId&&f.all&&f.all.checked&&action==='save'){
       const r=S.rules.find(x=>x.id===b.ruleId);
       if(r){commit(()=>{
@@ -1381,12 +1424,19 @@ function bookingSheet(id,month){
       if(calc)t.calc=calc;else delete t.calc;
       if(isNew){delete t.ruleId;delete t.occ;delete t.edited;if(b.thumb)t.thumb=b.thumb;S.bookings.push(t)}else if(t.ruleId)t.edited=true;
       if(moved)t.ord=placeOrd(m,day,t.id);
+      // Neu wiederkehrend / Abo: Regel ab diesem Monat anlegen, die weiteren Termine erzeugt generate()
+      if(rep&&!t.ruleId&&!(action==='dup'&&r0)){
+        const r={id:'r'+uid(),desc:t.desc,amount,cat:t.cat,days:day?[day]:[],every:rep,start:m,end};if(abo)r.abo=true;
+        S.rules.push(r);t.ruleId=r.id;t.occ=occKey(r.id,m,day);delete t.edited;
+      }
       view.month=m;
     });
-    snack(action==='dup'?'Kopie angelegt':'Gespeichert');
+    snack(action==='dup'?'Kopie angelegt':rep&&!r0?`${abo?'Abo':'Wiederholung'} angelegt: ${repName(rep)}${end?' bis '+mName(end):''}`:'Gespeichert');
    });
   const syncSrc=()=>{const v=form.elements.src.value;$('#fAmtWrap').hidden=v!=='fixed';$('#fRefund').hidden=v!=='refund';if(v==='refund'){form.elements.kind[1].checked=true;form.elements.cat.value='Einkommen'}};
   form.elements.src.onchange=syncSrc;syncSrc();
+  const syncRep=()=>{const on=+form.elements.rep.value>0;$('#fEndWrap').hidden=!on;$('#fAboWrap').hidden=!on};
+  form.elements.rep.onchange=syncRep;syncRep();
   form.elements.cat.onchange=()=>{if(form.elements.cat.value==='Einkommen')form.elements.kind[1].checked=true};
   form.querySelectorAll('[data-move]').forEach(btn=>btn.onclick=()=>{
     const j=pos+ +btn.dataset.move;if(j<0||j>=list.length)return;sheet.close();
@@ -1408,6 +1458,7 @@ function rulesSheet(){
      <label class="field"><span>alle … Monate</span><input id="r${i}every" data-f="every" type="number" min="1" value="${r.every||1}"></label></div>
     <div class="grid2"><label class="field"><span>ab</span><input id="r${i}start" data-f="start" type="month" value="${r.start}"></label>
      <label class="field"><span>bis (optional)</span><input id="r${i}end" data-f="end" type="month" value="${r.end||''}"></label></div>
+    <label class="check"><input type="checkbox" id="r${i}abo" data-f="abo" ${r.abo?'checked':''}>Abo</label>
     <button class="btn danger" type="button" data-rm>Regel löschen</button></div>`;
   openSheet('Laufende Buchungen',`<p class="sub" style="margin-top:0">Diese Buchungen werden in jedem Monat automatisch angelegt, auch in neu angehängten. Änderst du einen Betrag (z. B. Einkaufen 35 € statt 30 €), gilt das <b>ab ${esc(mName(TODAY_M<firstMonth()?firstMonth():TODAY_M))}</b> – frühere Monate bleiben unverändert. Ein Tag nach dem Monatsende rutscht aufs Monatsende (Gehalt am 30. → im Februar am 28.). {TT} und {MM} im Text werden durch Tag und Monat ersetzt.</p>
     <div class="stack" id="ruleList">${draft.map(card).join('')}</div><button class="btn full" type="button" id="ruleAdd" style="margin-top:12px">+ Neue Regel</button><div class="msg" role="alert" style="margin-top:8px"></div>`,
@@ -1421,7 +1472,7 @@ function rulesSheet(){
       if(isNaN(amount))return showErr(`Ungültiger Betrag bei „${g('desc')}“.`);
       const days=[...new Set(g('days').split(/[,;\s]+/).map(Number).filter(d=>d>=1&&d<=31))].sort((a,b)=>a-b);
       const old=draft[+el.dataset.i]||{};
-      next.push({...old,id:old.id||'r'+uid(),desc:g('desc').trim(),amount,cat:g('cat'),days,every:Math.max(1,+g('every')||1),start:g('start')||firstMonth(),end:g('end')||''});
+      next.push({...old,id:old.id||'r'+uid(),desc:g('desc').trim(),amount,cat:g('cat'),days,every:Math.max(1,+g('every')||1),start:g('start')||firstMonth(),end:g('end')||'',abo:el.querySelector('[data-f=abo]').checked});
     }
     // Änderungen gelten ab dem aktuellen Monat; vergangene Monate bleiben unverändert
     const from=TODAY_M<firstMonth()?firstMonth():TODAY_M;
@@ -1435,7 +1486,9 @@ function rulesSheet(){
       }
       for(const r of next){
         const o=S.rules.find(x=>x.id===r.id);
+        if(!r.abo)delete r.abo;
         if(!o){S.rules.push(r);continue}
+        famRules(o.id).forEach(x=>{if(r.abo)x.abo=true;else delete x.abo});  // Abo-Markierung gilt für die ganze Regel
         const patch={desc:r.desc,amount:r.amount,cat:r.cat,days:r.days,every:r.every,end:r.end};
         const changed=Object.keys(patch).some(k=>JSON.stringify(o[k])!==JSON.stringify(patch[k]))||o.start!==r.start;
         if(!changed)continue;
@@ -1449,6 +1502,27 @@ function rulesSheet(){
   $('#ruleAdd').onclick=()=>{draft.push({desc:'',amount:-10,cat:'Sonstiges',days:[1],every:1,start:firstMonth(),end:''});$('#ruleList').insertAdjacentHTML('beforeend',card(draft.at(-1),draft.length-1));const el=$('#ruleList').lastElementChild;wire(el);el.querySelector('input').focus()};
 }
 
+/* Abo-Übersicht: laufende Abos, nächste Abbuchung, Kosten pro Monat und Jahr */
+const aboRules=()=>{const seen=new Set();return S.rules.filter(r=>r.abo).map(r=>famRules(r.id).at(-1)).filter(r=>r&&!seen.has(r.id)&&seen.add(r.id)&&(!r.end||r.end>=TODAY_M))};
+function aboNext(r){const ids=new Set(famRules(r.id).map(x=>x.id));
+  return S.bookings.filter(b=>ids.has(b.ruleId)&&!b.done&&(b.month>TODAY_M||b.month===TODAY_M&&(!b.day||b.day>=+TODAY.slice(8)))).sort((a,b)=>a.month<b.month?-1:a.month>b.month?1:(a.day||0)-(b.day||0))[0]
+    ||S.bookings.filter(b=>ids.has(b.ruleId)&&!b.done).sort((a,b)=>a.month<b.month?-1:1)[0]}
+/* Nächster Termin aus der Regel berechnet (auch hinter dem Planungszeitraum, z. B. jährliche Abos) */
+function aboNextDate(r){const n=aboNext(r);if(n&&!n.done&&(n.month>TODAY_M||n.month===TODAY_M&&(!n.day||n.day>=+TODAY.slice(8))))return n;
+  const ev=r.every||1,d=r.days&&r.days[0];let m=r.start;while(m<TODAY_M||m===TODAY_M&&d&&d<+TODAY.slice(8))m=addM(m,ev);
+  return r.end&&m>r.end?null:{month:m,day:d?Math.min(d,daysIn(m)):null}}
+function abosSheet(){
+  const list=aboRules().map(r=>{const n=aboNextDate(r),c=Math.abs(cents(r.amount)),ev=r.every||1;return {r,n,c,ev,pm:c/ev}}).sort((a,b)=>b.pm-a.pm);
+  const pm=list.reduce((s,x)=>s+x.pm,0);
+  openSheet('Abos',`<div class="stack">
+    ${list.length?`<div class="abo-sum"><div><span class="sub">pro Monat ≈</span><b>${eur(Math.round(pm))}</b></div><div><span class="sub">pro Jahr ≈</span><b>${eur(Math.round(pm*12))}</b></div></div>
+    <div>${list.map(({r,n,c,ev,pm})=>`<div class="abo-row" data-act="aboOpen" data-id="${r.id}" role="button" tabindex="0"><div class="d"><div class="t">${esc(r.desc.replace(/\s*\{TT\}\.\{MM\}/,''))}</div>
+      <div class="s">${repName(ev)}${n?' · nächste: '+(n.day?fmtShort(n.month,n.day):mName(n.month)):''}${r.end?' · läuft bis '+esc(mName(r.end)):''}</div></div>
+      <div class="n"><b>${eur(c)}</b>${ev>1?`<small>≈ ${eur(Math.round(pm))}/Monat</small>`:''}</div></div>`).join('')}</div>
+    <p class="sub" style="margin:0">Tippe auf ein Abo, um die nächste Abbuchung zu öffnen. Dort kannst du Betrag oder Zeitraum ändern oder es kündigen („läuft bis“ oder „Einmalig“).</p>`
+    :`<p class="sub" style="margin:0">Noch keine Abos. Lege eine Buchung an oder öffne eine bestehende, wähle bei „Wiederholung“ z. B. monatlich oder halbjährlich und setze den Haken „Das ist ein Abo“.</p>`}
+    </div>`,`<span class="sp"></span><button class="btn" type="button" data-act="rules">↻ Alle laufenden Buchungen</button>`,()=>true);
+}
 function settingsSheet(){
   openSheet('Einstellungen',`<div class="stack">
     <div class="grid2"><label class="field"><span>Startdatum</span><input type="date" id="setSd" name="sd" value="${S.startDate}" required></label>
@@ -1558,6 +1632,8 @@ document.addEventListener('click',async e=>{
     case 'removeMonth':{const m=S.lastMonth;if(!await ask(`${mName(m)} mit allen Buchungen entfernen?`,'Entfernen',true))break;
       commit(()=>{S.bookings=S.bookings.filter(b=>b.month!==m);S.lastMonth=addM(m,-1);view.month=S.lastMonth},`${mName(m)} entfernt`);break}
     case 'rules':if(sheet.open)sheet.close();rulesSheet();break;
+    case 'abos':if(sheet.open)sheet.close();abosSheet();break;
+    case 'aboOpen':{const r=S.rules.find(x=>x.id===t.dataset.id),n=r&&aboNext(r);if(n){sheet.close();bookingSheet(n.id)}break}
     case 'export':saveFile('Finanzplaner-Sicherung-'+TODAY+'.json',JSON.stringify({...S,wishImages:Object.fromEntries([...wishImg].filter(([k])=>S.wish.some(w=>w.id===k||(w.extra||[]).includes(k))))},null,1),'application/json');break;
     case 'import':$('#importFile').click();break;
     case 'csv':exportCSV();break;
